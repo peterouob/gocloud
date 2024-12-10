@@ -1,6 +1,7 @@
 package Btree
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -16,24 +17,28 @@ type BPTreeInsert[T is] interface {
 var _ BPTreeInterface[string] = (*BPTree[string])(nil)
 
 type BPTree[T is] struct {
-	mutex sync.Mutex
-	root  *BPTreeNode[T]
-	width int
-	half  int
+	mutex       sync.Mutex
+	root        *BPTreeNode[T]
+	width       int
+	internalMax int
+	isLeaf      bool
 }
 
-func NewBPTree[T is](width int) *BPTree[T] {
+func NewBPTree[T is](width, internalMax int) *BPTree[T] {
 	if width < 3 {
 		width = MAX
+	} else if internalMax < 3 {
+		internalMax = MAX
 	}
 	var bpt = &BPTree[T]{}
-	bpt.root = NewLeafNode[T](width)
+	bpt.root = NewBTreeNode[T](width, true)
 	bpt.width = width
-	bpt.half = (bpt.width + 1) / 2
+	bpt.internalMax = internalMax
+	bpt.isLeaf = false
 	return bpt
 }
 
-func (b *BPTree[T]) Get(key int64) interface{} {
+func (b *BPTree[T]) Get(key int64) []T {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -48,37 +53,41 @@ func (b *BPTree[T]) Get(key int64) interface{} {
 	if len(node.Nodes) > 0 {
 		return nil
 	}
-
+	var result []T
 	for i := 0; i < len(node.Items); i++ {
+		fmt.Println(node.Items)
+
 		if node.Items[i].Key == key {
-			return node.Items[i].Value
+			result = append(result, node.Items[i].Value)
 		}
 	}
-	return nil
+	return result
 }
 
 func (b *BPTree[T]) Set(key int64, value T) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	b.setValue(nil, b.root, key, value)
+	fmt.Println("root :", b.root)
+	fmt.Println("nodes :", b.root.Nodes)
+	fmt.Println("items :", b.root.Items)
 }
 
 func (b *BPTree[T]) setValue(parent *BPTreeNode[T], node *BPTreeNode[T], key int64, value T) {
+	if len(node.Nodes) == 0 {
+		node.setNodeValue(key, value)
+	}
 	for i := 0; i < len(node.Nodes); i++ {
-		if key <= node.Nodes[i].MaxKey || i == len(node.Nodes) {
+		if key <= node.Nodes[i].MaxKey {
 			b.setValue(node, node.Nodes[i], key, value)
 			break
 		}
 	}
 
-	if len(node.Nodes) < 1 {
-		node.setNodeValue(key, value)
-	}
-
 	newNode := b.splitNode(node)
 	if newNode != nil {
 		if parent == nil {
-			parent = NewIndexNode[T](b.width)
+			parent = NewBTreeNode[T](b.width, true)
 			parent.addChild(node)
 			b.root = parent
 		}
@@ -87,27 +96,32 @@ func (b *BPTree[T]) setValue(parent *BPTreeNode[T], node *BPTreeNode[T], key int
 }
 
 func (b *BPTree[T]) splitNode(node *BPTreeNode[T]) *BPTreeNode[T] {
+	var newNode *BPTreeNode[T]
+
 	if len(node.Nodes) > b.width {
-		half := b.width/2 + 1
-		node2 := NewIndexNode[T](half)
-		node2.Nodes = append(node2.Nodes, node.Nodes[half:len(node.Nodes)]...)
-		node2.MaxKey = node2.Nodes[len(node.Nodes)-1].MaxKey
-
-		node.Nodes = node.Nodes[0:half]
-		node.MaxKey = node.Nodes[len(node.Nodes)-1].MaxKey
-
-		return node2
-	} else if len(node.Items) > b.width {
-		half := b.width/2 + 1
-		node2 := NewLeafNode[T](b.width)
-		node2.Items = append(node2.Items, node.Items[half:len(node.Items)]...)
-		node2.MaxKey = node2.Items[len(node.Items)-1].Key
-
-		node.Next = node2
-		node.Items = node.Items[0:half]
-		node.MaxKey = node.Items[len(node.Items)-1].Key
-
-		return node2
+		n := len(node.Nodes)
+		b.split(node, newNode, n)
+		return newNode
+	} else if len(node.Items) > b.internalMax {
+		b.isLeaf = false
+		n := len(node.Items)
+		b.split(node, newNode, n)
+		return newNode
 	}
 	return nil
+}
+
+func (b *BPTree[T]) split(node *BPTreeNode[T], newNode *BPTreeNode[T], n int) {
+	half := (b.width + 1) >> 1
+	if b.isLeaf {
+		newNode = NewBTreeNode[T](half, b.isLeaf)
+		copy(newNode.Nodes, node.Nodes[half:])
+		copy(node.Nodes, node.Nodes[:half])
+	} else {
+		newNode = NewBTreeNode[T](half, b.isLeaf)
+		copy(newNode.Items, node.Items[half:])
+		copy(node.Items, node.Items[:half])
+	}
+	newNode.MaxKey = newNode.Nodes[n-1].MaxKey
+	node.MaxKey = node.Nodes[n-1].MaxKey
 }

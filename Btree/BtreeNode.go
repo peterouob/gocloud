@@ -16,17 +16,15 @@ type BPTreeNode[T is] struct {
 	Next   *BPTreeNode[T]
 }
 
-func NewLeafNode[T is](width int) *BPTreeNode[T] {
+func NewBTreeNode[T is](width int, isLeaf bool) *BPTreeNode[T] {
 	node := &BPTreeNode[T]{}
-	node.Items = make([]BPTreeItem[T], width+1)
-	node.Items = node.Items[0:0]
-	return node
-}
-
-func NewIndexNode[T is](width int) *BPTreeNode[T] {
-	node := &BPTreeNode[T]{}
-	node.Nodes = make([]*BPTreeNode[T], width+1)
-	node.Nodes = node.Nodes[0:0]
+	if isLeaf {
+		node.Nodes = make([]*BPTreeNode[T], width+1)
+		node.Nodes = node.Nodes[0:0]
+	} else {
+		node.Items = make([]BPTreeItem[T], width+1)
+		node.Items = node.Items[0:0]
+	}
 	return node
 }
 

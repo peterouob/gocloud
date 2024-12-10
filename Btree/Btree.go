@@ -1,7 +1,6 @@
 package Btree
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -55,7 +54,6 @@ func (b *BPTree[T]) Get(key int64) []T {
 	}
 	var result []T
 	for i := 0; i < len(node.Items); i++ {
-		fmt.Println(node.Items)
 
 		if node.Items[i].Key == key {
 			result = append(result, node.Items[i].Value)
@@ -68,9 +66,6 @@ func (b *BPTree[T]) Set(key int64, value T) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	b.setValue(nil, b.root, key, value)
-	fmt.Println("root :", b.root)
-	fmt.Println("nodes :", b.root.Nodes)
-	fmt.Println("items :", b.root.Items)
 }
 
 func (b *BPTree[T]) setValue(parent *BPTreeNode[T], node *BPTreeNode[T], key int64, value T) {
@@ -96,32 +91,27 @@ func (b *BPTree[T]) setValue(parent *BPTreeNode[T], node *BPTreeNode[T], key int
 }
 
 func (b *BPTree[T]) splitNode(node *BPTreeNode[T]) *BPTreeNode[T] {
-	var newNode *BPTreeNode[T]
+	half := b.width/2 + 1
 
 	if len(node.Nodes) > b.width {
-		n := len(node.Nodes)
-		b.split(node, newNode, n)
+		newNode := NewBTreeNode[T](b.width, false)
+		copy(newNode.Nodes, node.Nodes[half:len(node.Nodes)])
+		newNode.MaxKey = newNode.Nodes[len(newNode.Nodes)-1].MaxKey
+
+		node.Nodes = node.Nodes[0:half]
+		node.MaxKey = node.Nodes[len(node.Nodes)-1].MaxKey
 		return newNode
 	} else if len(node.Items) > b.internalMax {
-		b.isLeaf = false
-		n := len(node.Items)
-		b.split(node, newNode, n)
-		return newNode
-	}
-	return nil
-}
+		newNode := NewBTreeNode[T](b.width, true)
+		newNode.Items = append(newNode.Items, node.Items[half:len(node.Items)]...)
+		newNode.MaxKey = newNode.Items[len(newNode.Items)-1].Key
 
-func (b *BPTree[T]) split(node *BPTreeNode[T], newNode *BPTreeNode[T], n int) {
-	half := (b.width + 1) >> 1
-	if b.isLeaf {
-		newNode = NewBTreeNode[T](half, b.isLeaf)
-		copy(newNode.Nodes, node.Nodes[half:])
-		copy(node.Nodes, node.Nodes[:half])
-	} else {
-		newNode = NewBTreeNode[T](half, b.isLeaf)
-		copy(newNode.Items, node.Items[half:])
-		copy(node.Items, node.Items[:half])
+		node.Next = newNode
+		node.Items = node.Items[0:half]
+		node.MaxKey = node.Items[len(node.Items)-1].Key
+		return newNode
+
 	}
-	newNode.MaxKey = newNode.Nodes[n-1].MaxKey
-	node.MaxKey = node.Nodes[n-1].MaxKey
+
+	return nil
 }

@@ -18,7 +18,8 @@ func TestBPTreeSet(t *testing.T) {
 	bpt.Set(40, 900)
 	bpt.Set(40, 200)
 	bpt.Set(40, 1000)
-
+	t.Log(bpt.Get(40))
+	bpt.Set(40, 1)
 	t.Log(bpt.Get(40))
 
 }

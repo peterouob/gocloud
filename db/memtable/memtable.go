@@ -1,7 +1,5 @@
 package memtable
 
-import "github.com/peterouob/gocloud/db/utils"
-
 type color int
 
 const (
@@ -12,7 +10,7 @@ const (
 type Tree[K comparable, V comparable] struct {
 	root       *Node[K, V]
 	leaf       *Node[K, V]
-	comparator utils.Comparator[K]
+	comparator Comparator[K]
 	Size       int
 }
 
@@ -25,7 +23,7 @@ type Node[K comparable, V comparable] struct {
 	parent *Node[K, V]
 }
 
-func NewTree[K comparable, V comparable](comparator utils.Comparator[K]) *Tree[K, V] {
+func NewTree[K comparable, V comparable](comparator Comparator[K]) *Tree[K, V] {
 	tree := new(Tree[K, V])
 	tree.leaf = &Node[K, V]{color: black}
 	tree.root = tree.leaf
@@ -35,4 +33,3 @@ func NewTree[K comparable, V comparable](comparator utils.Comparator[K]) *Tree[K
 
 func (tree *Tree[K, V]) leftRotation(node *Node[K, V])  {}
 func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {}
-.

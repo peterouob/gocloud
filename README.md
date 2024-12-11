@@ -1,5 +1,5 @@
 - [ ] B+Tree similar sql and store the data on the file and push to S3
-
+- [ ] LSM Tree 
 - [ ] Use Kubernetes to deploy the environment 
   - EKS cluster
   
@@ -13,6 +13,7 @@
 - [ ] EC2 to push the website on domain with nginx to load balance
 
 - [ ] Helm Chart to manage the environment 
+- [ ] pbd->public table, pdb ->private 
 
 ```
 Ingress control -> LB(DNS) -> Export

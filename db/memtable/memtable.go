@@ -65,3 +65,17 @@ func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 	left.right = node
 	node.parent = left
 }
+
+func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
+	cur := tree.root
+	for cur != nil {
+		if key == cur.Key {
+			return cur
+		} else if tree.comparator.Compare(key, cur.Key) < 0 {
+			cur = cur.left
+		} else if tree.comparator.Compare(key, cur.Key) > 0 {
+			cur = cur.right
+		}
+	}
+	return nil
+}

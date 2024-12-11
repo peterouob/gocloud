@@ -1,13 +1,16 @@
 package kv
 
-const (
-	SuccessFind = iota
-	DeleteSuccess
-	NotFound
-)
+type status uint8
 
-type KV struct {
-	Key    string
-	Value  []byte
-	Delete bool
+type KV[K any, V any] struct {
+	Key    any
+	Value  any
+	Status status
+}
+
+func NewKV[K any, V any](key K, value V) *KV[K, V] {
+	return &KV[K, V]{
+		Key:   key,
+		Value: value,
+	}
 }

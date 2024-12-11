@@ -19,6 +19,14 @@ const (
 	flush
 )
 
+type mockDropper struct {
+	droppedErrors []error
+}
+
+func (m *mockDropper) Drop(err error) {
+	m.droppedErrors = append(m.droppedErrors, err)
+}
+
 type MemTable[K any, V any] struct {
 	MemTree   *Tree[K, V]
 	WalReader *wal.Reader
@@ -57,7 +65,7 @@ func (m *MemTable[K, V]) listenState() {
 			if st == writeAble {
 
 			} else if st == readOnly {
-
+				// TODO: flush
 			} else {
 
 			}
@@ -101,4 +109,6 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 func (m *MemTable[K, V]) Flush() {
 	m.WalWriter.Flush()
 	m.curSize = 0
+	w := m.WalWriter.Next()
+	m.WalWriter.Reset(w)
 }

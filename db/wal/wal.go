@@ -49,16 +49,19 @@ type Reader struct {
 	n        int
 	last     bool
 	buf      [blockSize]byte
+	State    []interface{}
 }
 
 func NewReader(r io.Reader, dropper Dropper, strict, checksum bool) *Reader {
-	return &Reader{
+	reader := &Reader{
 		r:        r,
 		dropper:  dropper,
 		strict:   strict,
 		checksum: checksum,
 		last:     true,
 	}
+	reader.State = append(reader.State, reader)
+	return reader
 }
 
 var errSkip = errors.New("skipped")
@@ -201,6 +204,18 @@ func (s *singleReader) ReadByte() (byte, error) {
 	c := r.buf[r.i]
 	r.i++
 	return c, nil
+}
+
+func (r *Reader) Reset(reader io.Reader, dropper Dropper, strict bool, checksum bool) {
+	r.seq++
+	r.r = reader
+	r.dropper = dropper
+	r.strict = strict
+	r.checksum = checksum
+	r.i = 0
+	r.j = 0
+	r.n = 0
+	r.last = true
 }
 
 type Writer struct {

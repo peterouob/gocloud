@@ -26,6 +26,13 @@ func TestEmpty(t *testing.T) {
 	}
 }
 
+func TestReaderState(t *testing.T) {
+	buf := new(bytes.Buffer)
+	r := NewReader(buf, dropper{t}, true, true)
+	oldr := r.State[0]
+	assert.Equal(t, oldr, r)
+}
+
 type mockDropper struct {
 	droppedErrors []error
 }

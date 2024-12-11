@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestMemTable(t *testing.T) {
+func TestTree(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	tree := NewTree[int, int](compare)
 	tree.FindKey(1)

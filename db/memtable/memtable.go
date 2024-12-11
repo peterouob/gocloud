@@ -7,6 +7,19 @@ const (
 	red
 )
 
+type RedBlackTree[K any, V any] interface {
+	FindKey(K) *Node[K, V]
+	Insert(K, V)
+	Delete(K)
+	TraverseNodes(func(*Node[K, V]), func(*Node[K, V]))
+
+	leftRotation(*Node[K, V])
+	rightRotation(*Node[K, V])
+	fixAfterInsert(*Node[K, V])
+}
+
+var _ RedBlackTree[int, int] = (*Tree[int, int])(nil)
+
 type Tree[K any, V any] struct {
 	root       *Node[K, V]
 	leaf       *Node[K, V]
@@ -70,7 +83,7 @@ func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 
 func (tree *Tree[K, V]) Insert(key K, value V) {
 	if tree.root == tree.leaf {
-		newNode := &Node[K, V]{
+		node := &Node[K, V]{
 			Key:    key,
 			Value:  value,
 			color:  black,
@@ -78,7 +91,7 @@ func (tree *Tree[K, V]) Insert(key K, value V) {
 			left:   tree.leaf,
 			right:  tree.leaf,
 		}
-		tree.root = newNode
+		tree.root = node
 		tree.Size++
 		return
 	}
@@ -98,7 +111,7 @@ func (tree *Tree[K, V]) Insert(key K, value V) {
 		}
 	}
 
-	newNode := &Node[K, V]{
+	node := &Node[K, V]{
 		Key:    key,
 		Value:  value,
 		color:  red,
@@ -108,12 +121,58 @@ func (tree *Tree[K, V]) Insert(key K, value V) {
 	}
 
 	if tree.comparator.Compare(key, parent.Key) < 0 {
-		parent.left = newNode
+		parent.left = node
 	} else {
-		parent.right = newNode
+		parent.right = node
 	}
-
 	tree.Size++
+	tree.fixAfterInsert(node)
+}
+
+func (tree *Tree[K, V]) fixAfterInsert(node *Node[K, V]) {
+	node.color = red
+
+	for node != tree.root && node.parent.color == red {
+		if node.parent == node.parent.parent.left {
+			uncle := node.parent.parent.right
+
+			if uncle.color == red {
+				node.parent.color = black
+				uncle.color = black
+				node.parent.parent.color = red
+				node = node.parent.parent
+			} else {
+				if node == node.parent.right {
+					node = node.parent
+					tree.leftRotation(node)
+				}
+
+				node.parent.color = black
+				node.parent.parent.color = red
+				tree.rightRotation(node.parent.parent)
+			}
+		} else {
+			uncle := node.parent.parent.left
+
+			if uncle.color == red {
+				node.parent.color = black
+				uncle.color = black
+				node.parent.parent.color = red
+				node = node.parent.parent
+
+			} else {
+				if node == node.parent.left {
+					node = node.parent
+					tree.rightRotation(node)
+				}
+
+				node.parent.color = black
+				node.parent.parent.color = red
+				tree.leftRotation(node.parent.parent)
+			}
+		}
+	}
+	tree.root.color = black
 }
 
 func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
@@ -139,4 +198,24 @@ func (tree *Tree[K, V]) Delete(key K) {
 	if node := tree.FindKey(key); node != nil {
 		node.isDelete = true
 	}
+}
+
+func (tree *Tree[K, V]) TraverseNodes(fn func(node *Node[K, V]), dfn func(node *Node[K, V])) {
+	if tree.root == tree.leaf {
+		return
+	}
+	var traverse func(node *Node[K, V])
+	traverse = func(node *Node[K, V]) {
+		if node == tree.leaf {
+			return
+		}
+		traverse(node.left)
+		if !node.isDelete && fn != nil {
+			fn(node)
+		} else if node.isDelete && dfn != nil {
+			dfn(node)
+		}
+		traverse(node.right)
+	}
+	traverse(tree.root)
 }

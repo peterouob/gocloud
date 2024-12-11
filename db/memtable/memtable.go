@@ -7,23 +7,24 @@ const (
 	red
 )
 
-type Tree[K comparable, V comparable] struct {
+type Tree[K any, V any] struct {
 	root       *Node[K, V]
 	leaf       *Node[K, V]
 	comparator Comparator[K]
 	Size       int
 }
 
-type Node[K comparable, V comparable] struct {
-	Key    K
-	Value  V
-	color  color
-	left   *Node[K, V]
-	right  *Node[K, V]
-	parent *Node[K, V]
+type Node[K any, V any] struct {
+	Key      K
+	Value    V
+	color    color
+	left     *Node[K, V]
+	right    *Node[K, V]
+	parent   *Node[K, V]
+	isDelete bool
 }
 
-func NewTree[K comparable, V comparable](comparator Comparator[K]) *Tree[K, V] {
+func NewTree[K any, V any](comparator Comparator[K]) *Tree[K, V] {
 	tree := new(Tree[K, V])
 	tree.leaf = &Node[K, V]{color: black}
 	tree.root = tree.leaf
@@ -40,7 +41,7 @@ func (tree *Tree[K, V]) leftRotation(node *Node[K, V]) {
 	right.parent = node.parent
 	if node.parent == tree.leaf {
 		tree.root = right
-	} else if node == node.left {
+	} else if node == node.parent.left {
 		node.parent.left = right
 	} else {
 		node.parent.right = right
@@ -48,6 +49,7 @@ func (tree *Tree[K, V]) leftRotation(node *Node[K, V]) {
 	right.left = node
 	node.parent = right
 }
+
 func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 	left := node.left
 	node.left = left.right
@@ -57,25 +59,84 @@ func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 	left.parent = node.parent
 	if node.parent == tree.leaf {
 		tree.root = left
-	} else if node == node.parent.left {
-		node.parent.left = left
-	} else {
+	} else if node == node.parent.right {
 		node.parent.right = left
+	} else {
+		node.parent.left = left
 	}
 	left.right = node
 	node.parent = left
 }
 
-func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
+func (tree *Tree[K, V]) Insert(key K, value V) {
+	if tree.root == tree.leaf {
+		newNode := &Node[K, V]{
+			Key:    key,
+			Value:  value,
+			color:  black,
+			parent: tree.leaf,
+			left:   tree.leaf,
+			right:  tree.leaf,
+		}
+		tree.root = newNode
+		tree.Size++
+		return
+	}
+	parent := tree.leaf
 	cur := tree.root
-	for cur != nil {
-		if key == cur.Key {
-			return cur
-		} else if tree.comparator.Compare(key, cur.Key) < 0 {
+	for cur != tree.leaf {
+		parent = cur
+		cmpResult := tree.comparator.Compare(key, cur.Key)
+		switch {
+		case cmpResult < 0:
 			cur = cur.left
-		} else if tree.comparator.Compare(key, cur.Key) > 0 {
+		case cmpResult > 0:
 			cur = cur.right
+		default:
+			cur.Value = value
+			return
 		}
 	}
-	return nil
+
+	newNode := &Node[K, V]{
+		Key:    key,
+		Value:  value,
+		color:  red,
+		parent: parent,
+		left:   tree.leaf,
+		right:  tree.leaf,
+	}
+
+	if tree.comparator.Compare(key, parent.Key) < 0 {
+		parent.left = newNode
+	} else {
+		parent.right = newNode
+	}
+
+	tree.Size++
+}
+
+func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
+	cur := tree.root
+	for cur != tree.leaf {
+		cmpResult := tree.comparator.Compare(key, cur.Key)
+		switch {
+		case cmpResult > 0:
+			cur = cur.right
+		case cmpResult < 0:
+			cur = cur.left
+		default:
+			return cur
+		}
+	}
+	return tree.leaf
+}
+
+func (tree *Tree[K, V]) Delete(key K) {
+	if tree.leaf == nil {
+		return
+	}
+	if node := tree.FindKey(key); node != nil {
+		node.isDelete = true
+	}
 }

@@ -2,7 +2,7 @@ package memtable
 
 import "cmp"
 
-type Comparator[T comparable] interface {
+type Comparator[T any] interface {
 	Compare(T, T) int
 }
 

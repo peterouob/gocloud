@@ -1,5 +1,9 @@
 package memtable
 
+import (
+	"github.com/peterouob/gocloud/db/utils"
+)
+
 type color int
 
 const (
@@ -23,7 +27,7 @@ var _ RedBlackTree[int, int] = (*Tree[int, int])(nil)
 type Tree[K any, V any] struct {
 	root       *Node[K, V]
 	leaf       *Node[K, V]
-	comparator Comparator[K]
+	comparator utils.Comparator[K]
 	Size       int
 }
 
@@ -37,7 +41,7 @@ type Node[K any, V any] struct {
 	isDelete bool
 }
 
-func NewTree[K any, V any](comparator Comparator[K]) *Tree[K, V] {
+func NewTree[K any, V any](comparator utils.Comparator[K]) *Tree[K, V] {
 	tree := new(Tree[K, V])
 	tree.leaf = &Node[K, V]{color: black}
 	tree.root = tree.leaf

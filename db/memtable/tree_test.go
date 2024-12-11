@@ -2,11 +2,12 @@ package memtable
 
 import (
 	"fmt"
+	"github.com/peterouob/gocloud/db/utils"
 	"testing"
 )
 
 func TestMemTable(t *testing.T) {
-	compare := &OrderComparator[int]{}
+	compare := &utils.OrderComparator[int]{}
 	tree := NewTree[int, int](compare)
 	tree.FindKey(1)
 	tree.Insert(1, 1)
@@ -70,7 +71,7 @@ func TestRedBlackTreeInsertion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			compare := &OrderComparator[int]{}
+			compare := &utils.OrderComparator[int]{}
 			tree := NewTree[int, int](compare)
 
 			for _, val := range tc.insertions {

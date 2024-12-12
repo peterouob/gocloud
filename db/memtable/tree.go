@@ -192,7 +192,7 @@ func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
 			return cur
 		}
 	}
-	return tree.leaf
+	return nil
 }
 
 func (tree *Tree[K, V]) Delete(key K) {

@@ -3,12 +3,13 @@ package memtable
 import (
 	"encoding/json"
 	"errors"
-	"github.com/peterouob/gocloud/db/kv"
-	"github.com/peterouob/gocloud/db/utils"
-	"github.com/peterouob/gocloud/db/wal"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/peterouob/gocloud/db/memtable/kv"
+	"github.com/peterouob/gocloud/db/utils"
+	"github.com/peterouob/gocloud/db/wal"
 )
 
 type memState uint8
@@ -63,10 +64,9 @@ func (m *MemTable[K, V]) listenState() {
 		select {
 		case <-m.ticker.C:
 			if m.state != readOnly {
-				m.mu.Lock()
+				log.Println("hello !")
 				m.state = readOnly
 				m.stateChan.Broadcast()
-				m.mu.Unlock()
 				m.Reset()
 				m.ticker.Reset(m.flushPeriod)
 			} else {
@@ -112,10 +112,14 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 }
 
 func (m *MemTable[K, V]) Get(key K) (V, error) {
-	var v V
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	var v V
+
+	if m.MemTree == nil || m.MemTree.Size == 0 {
+		return v, errors.New("memtable is empty")
+	}
 
 	keydata, err := json.Marshal(key)
 	if err != nil {
@@ -153,19 +157,15 @@ func (m *MemTable[K, V]) DeepCopy() *MemTable[K, V] {
 }
 
 func (m *MemTable[K, V]) Reset() {
-
 	newCopy := m.DeepCopy()
-	log.Println("append kv array ...")
 
 	m.IMemTable.mu.Lock()
-	defer m.IMemTable.mu.Unlock()
-
 	if m.IMemTable != nil {
 		m.IMemTable.readOnlyTable = append(m.IMemTable.readOnlyTable, newCopy)
 	}
-
+	m.MemTree = NewTree[K, V](m.MemTree.comparator)
 	m.curSize = 0
 	m.state = writeAble
+	m.IMemTable.mu.Unlock()
 
-	log.Println("Flush completed, state reset to writeAble")
 }

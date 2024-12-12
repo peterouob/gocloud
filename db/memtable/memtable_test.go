@@ -117,3 +117,28 @@ func TestImmTable(t *testing.T) {
 	_, err = m.Get(1)
 	assert.Error(t, err)
 }
+
+func TestTimeout(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf, dropper{t}, false, true)
+	im := NewIMemTable[int, int]()
+	m := NewMemTable[int, int](compare, 4*1024+9, r, w, 1*time.Second, im)
+	err := m.Put(1, 1)
+	assert.NoError(t, err)
+	err = m.Put(2, 2)
+	assert.NoError(t, err)
+	time.Sleep(2 * time.Second)
+	_, err = m.Get(1)
+	assert.Error(t, err)
+	val, err := im.Get(1)
+	assert.NoError(t, err)
+	assert.Equal(t, val, 1)
+	err = m.Put(9, 10)
+	assert.NoError(t, err)
+	_, err = m.Get(9)
+	assert.NoError(t, err)
+	val, err = im.Get(9)
+	assert.Error(t, err)
+}

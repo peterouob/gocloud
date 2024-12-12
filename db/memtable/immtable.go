@@ -34,11 +34,14 @@ func (i *IMemTable[K, V]) Get(key K) (V, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
+	var vnil V
+
 	for _, table := range i.readOnlyTable {
 		node := table.MemTree.FindKey(key)
-		return node.Value, nil
+		if node != nil {
+			return node.Value, nil
+		}
 	}
 
-	var vnil V
 	return vnil, errors.New("key not found in immutable table")
 }

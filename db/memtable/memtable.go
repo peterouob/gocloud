@@ -1,3 +1,28 @@
+//
+//                       _oo0oo_
+//                      o8888888o
+//                      88" . "88
+//                      (| -_- |)
+//                      0\  =  /0
+//                    ___/`---'\___
+//                  .' \\|     |// '.
+//                 / \\|||  :  |||// \
+//                / _||||| -:- |||||- \
+//               |   | \\\  -  /// |   |
+//               | \_|  ''\---/''  |_/ |
+//               \  .-\__  '-'  ___/-. /
+//             ___'. .'  /--.--\  `. .'___
+//          ."" '<  `.___\_<|>_/___.' >' "".
+//         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
+//         \  \ `_.   \_ __\ /__ _/   .-` /  /
+//     =====`-.____`.___ \_____/___.-`___.-'=====
+//                       `=---='
+//
+//
+//     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//
+//               佛祖保佑         永无BUG
+
 package memtable
 
 import (
@@ -67,7 +92,7 @@ func (m *MemTable[K, V]) listenState() {
 				m.state = readOnly
 				m.stateChan.Broadcast()
 				m.mu.Unlock()
-				m.Flush()
+				m.Reset()
 				m.ticker.Reset(m.flushPeriod)
 			} else {
 				m.mu.Unlock()
@@ -82,7 +107,7 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 
 	if m.state == readOnly {
 		log.Println("this is read only table")
-		m.Flush()
+		m.Reset()
 		return errors.New("memtable is read-only, flushed")
 
 	}
@@ -104,7 +129,9 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 	if m.curSize > m.maxSize {
 		log.Println("Max size exceeded, switching to read-only state")
 		m.state = readOnly
-		m.Flush()
+		m.Reset()
+	} else {
+		m.WalWriter.Flush()
 	}
 	return nil
 }
@@ -133,7 +160,7 @@ func (m *MemTable[K, V]) Get(key K) (V, error) {
 	return v, nil
 }
 
-func (m *MemTable[K, V]) Flush() {
+func (m *MemTable[K, V]) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -142,7 +169,6 @@ func (m *MemTable[K, V]) Flush() {
 		log.Println("MemTable appended to ReadOnlyTable")
 	}
 	log.Println("append finish")
-	m.WalWriter.Flush()
 	m.curSize = 0
 	w := m.WalWriter.Next()
 	m.WalWriter.Reset(w)

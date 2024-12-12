@@ -94,16 +94,6 @@ func TestTimeOutAndRead(t *testing.T) {
 	t.Log(n)
 }
 
-func TestFlush(t *testing.T) {
-	compare := &utils.OrderComparator[int]{}
-	buf := new(bytes.Buffer)
-	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
-	im := NewIMemTable[int, int]()
-	m := NewMemTable[int, int](compare, 2, r, w, 3*time.Minute, im)
-	m.Flush()
-}
-
 func TestImmTable(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)

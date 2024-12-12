@@ -106,6 +106,30 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 	return nil
 }
 
+func (m *MemTable[K, V]) Get(key K) (V, error) {
+	var v V
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	keydata, err := json.Marshal(key)
+	if err != nil {
+		return v, errors.New("error in marshal key")
+	}
+	reader, err := m.WalReader.Next()
+	if err != nil {
+		return v, errors.New("error in call wal reader next ")
+
+	}
+	if _, err := reader.Read(keydata); err != nil {
+		return v, errors.New("error in wal reader key data")
+
+	}
+	node := m.MemTree.FindKey(key)
+	v = node.Value
+	return v, nil
+}
+
 func (m *MemTable[K, V]) Flush() {
 	m.WalWriter.Flush()
 	m.curSize = 0

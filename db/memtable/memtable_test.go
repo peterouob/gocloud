@@ -49,3 +49,24 @@ func TestMemTableListe(t *testing.T) {
 	_ = NewMemTable[int, int](compare, 2, r, w, 3*time.Second)
 	time.Sleep(10 * time.Second)
 }
+
+func TestMemTableReadEmpty(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf, dropper{t}, false, true)
+	m := NewMemTable[int, int](compare, 2, r, w, 3*time.Second)
+	_, err := m.Get(1)
+	assert.Error(t, err)
+}
+
+func TestMemTableRead(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf, dropper{t}, false, true)
+	m := NewMemTable[int, int](compare, 2, r, w, 3*time.Minute)
+	m.Put(1, 1)
+	v, _ := m.Get(1)
+	assert.Equal(t, v, 1)
+}

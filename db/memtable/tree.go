@@ -223,3 +223,52 @@ func (tree *Tree[K, V]) TraverseNodes(fn func(node *Node[K, V]), dfn func(node *
 	}
 	traverse(tree.root)
 }
+
+func (tree *Tree[K, V]) TraverseNodesWithoutDelete(fn func(node *Node[K, V])) {
+	if tree.root == tree.leaf {
+		return
+	}
+	var traverse func(node *Node[K, V])
+	traverse = func(node *Node[K, V]) {
+		if node == tree.leaf {
+			return
+		}
+		traverse(node.left)
+		if !node.isDelete && fn != nil {
+			fn(node)
+		}
+		traverse(node.right)
+	}
+	traverse(tree.root)
+}
+
+func (tree *Tree[K, V]) DeepCopy() *Tree[K, V] {
+	if tree == nil {
+		return nil
+	}
+
+	if tree.leaf == nil {
+		tree.leaf = &Node[K, V]{color: black}
+	}
+	newTree := NewTree[K, V](tree.comparator)
+	newTree.root = deepCopyNode(tree.root, tree.leaf, newTree.leaf)
+
+	newTree.Size = tree.Size
+
+	return newTree
+}
+
+func deepCopyNode[K, V any](node, sourceLeaf, targetLeaf *Node[K, V]) *Node[K, V] {
+	if node == nil || node == sourceLeaf {
+		return targetLeaf
+	}
+	cloned := &Node[K, V]{
+		Key:      node.Key,
+		Value:    node.Value,
+		color:    node.color,
+		isDelete: node.isDelete,
+	}
+	cloned.left = deepCopyNode(node.left, sourceLeaf, targetLeaf)
+	cloned.right = deepCopyNode(node.right, sourceLeaf, targetLeaf)
+	return cloned
+}

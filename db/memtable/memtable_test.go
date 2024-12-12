@@ -106,11 +106,14 @@ func TestImmTable(t *testing.T) {
 
 	err := m.Put(1, 1)
 	assert.NoError(t, err)
-	err = m.Put(2, 1)
+	err = m.Put(2, 2)
 	assert.NoError(t, err)
-	err = m.Put(3, 1)
+	err = m.Put(3, 3)
 	assert.NoError(t, err)
-
-	assert.Equal(t, im.Len(), 1)
-
+	v, err := im.Get(1)
+	assert.NoError(t, err)
+	assert.Equal(t, v, 1)
+	assert.Equal(t, im.Len(), 3)
+	_, err = m.Get(1)
+	assert.Error(t, err)
 }

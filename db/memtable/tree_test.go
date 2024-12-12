@@ -152,3 +152,39 @@ func validateNoConsecutiveRed(node *Node[int, int], parentRed bool) error {
 
 	return nil
 }
+
+func TestTree_DeepCopy(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	tree := NewTree[int, int](compare)
+
+	tree.Insert(10, 1)
+	tree.Insert(20, 2)
+	tree.Insert(5, 3)
+	tree.Insert(15, 4)
+
+	clonedTree := tree.DeepCopy()
+
+	fmt.Println("Original Tree:")
+	tree.TraverseNodes(func(node *Node[int, int]) {
+		fmt.Printf("Key: %d, Value: %d\n", node.Key, node.Value)
+	}, nil)
+
+	fmt.Println("\nCloned Tree:")
+	clonedTree.TraverseNodes(func(node *Node[int, int]) {
+		fmt.Printf("Key: %d, Value: %d\n", node.Key, node.Value)
+	}, nil)
+
+	fmt.Println("\nModify Cloned Tree:")
+	clonedTree.Insert(25, 1)
+	clonedTree.Delete(10)
+
+	fmt.Println("\nOriginal Tree After Modify Clone:")
+	tree.TraverseNodes(func(node *Node[int, int]) {
+		fmt.Printf("Key: %d, Value: %d\n", node.Key, node.Value)
+	}, nil)
+
+	fmt.Println("\nCloned Tree After Modify:")
+	clonedTree.TraverseNodes(func(node *Node[int, int]) {
+		fmt.Printf("Key: %d, Value: %d\n", node.Key, node.Value)
+	}, nil)
+}

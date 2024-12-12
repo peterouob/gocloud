@@ -1,28 +1,3 @@
-//
-//                       _oo0oo_
-//                      o8888888o
-//                      88" . "88
-//                      (| -_- |)
-//                      0\  =  /0
-//                    ___/`---'\___
-//                  .' \\|     |// '.
-//                 / \\|||  :  |||// \
-//                / _||||| -:- |||||- \
-//               |   | \\\  -  /// |   |
-//               | \_|  ''\---/''  |_/ |
-//               \  .-\__  '-'  ___/-. /
-//             ___'. .'  /--.--\  `. .'___
-//          ."" '<  `.___\_<|>_/___.' >' "".
-//         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
-//         \  \ `_.   \_ __\ /__ _/   .-` /  /
-//     =====`-.____`.___ \_____/___.-`___.-'=====
-//                       `=---='
-//
-//
-//     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-//               佛祖保佑         永无BUG
-
 package memtable
 
 import (
@@ -109,7 +84,6 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 		log.Println("this is read only table")
 		m.Reset()
 		return errors.New("memtable is read-only, flushed")
-
 	}
 
 	data := kv.NewKV(key, value)
@@ -125,6 +99,7 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 	}
 
 	m.MemTree.Insert(key, value)
+
 	m.curSize += size
 	if m.curSize > m.maxSize {
 		log.Println("Max size exceeded, switching to read-only state")
@@ -160,38 +135,37 @@ func (m *MemTable[K, V]) Get(key K) (V, error) {
 	return v, nil
 }
 
+func (m *MemTable[K, V]) DeepCopy() *MemTable[K, V] {
+	newMemTree := m.MemTree.DeepCopy()
+	return &MemTable[K, V]{
+		MemTree:     newMemTree,
+		WalReader:   m.WalReader,
+		WalWriter:   m.WalWriter,
+		maxSize:     m.maxSize,
+		flushPeriod: m.flushPeriod,
+		ticker:      m.ticker,
+		curSize:     m.curSize,
+		state:       m.state,
+		stateChan:   m.stateChan,
+		IMemTable:   m.IMemTable,
+		mu:          sync.Mutex{},
+	}
+}
+
 func (m *MemTable[K, V]) Reset() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+
+	newCopy := m.DeepCopy()
+	log.Println("append kv array ...")
+
+	m.IMemTable.mu.Lock()
+	defer m.IMemTable.mu.Unlock()
 
 	if m.IMemTable != nil {
-		m.IMemTable.ReadOnlyTable = append(m.IMemTable.ReadOnlyTable, m)
-		log.Println("MemTable appended to ReadOnlyTable")
+		m.IMemTable.readOnlyTable = append(m.IMemTable.readOnlyTable, newCopy)
 	}
-	log.Println("append finish")
+
 	m.curSize = 0
-	w := m.WalWriter.Next()
-	m.WalWriter.Reset(w)
-
-	r, err := m.WalReader.Next()
-	if err != nil {
-		panic(errors.New("error in call wal reader next"))
-	}
-	drop, ok := m.WalReader.State[0].(wal.Dropper)
-	if !ok {
-		panic(errors.New("error in translate type for wal reader state "))
-	}
-	strict, ok := m.WalReader.State[1].(bool)
-	if !ok {
-		panic(errors.New("error in translate type for wal reader state "))
-	}
-	checksum, ok := m.WalReader.State[2].(bool)
-	if !ok {
-		panic(errors.New("error in translate type for wal reader state "))
-	}
-
-	m.WalReader.Reset(r, drop, strict, checksum)
 	m.state = writeAble
-	log.Println("Flush completed, state reset to writeAble")
 
+	log.Println("Flush completed, state reset to writeAble")
 }

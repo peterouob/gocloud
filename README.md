@@ -1,10 +1,10 @@
 - [ ] LSM Tree similar sql and store the data on the file and push to S3
   - [x] MemTable (Red black tree)
-  - [ ] IMemTable
+  - [x] IMemTable
   - [ ] SSTable
   - [ ] Open
-  - [ ] Wal
-  - 
+  - [x] Wal
+  
 - [ ] Use Kubernetes to deploy the environment 
   - EKS cluster
   

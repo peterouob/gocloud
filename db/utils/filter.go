@@ -1,6 +1,9 @@
 package utils
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"errors"
+)
 
 const (
 	c1        = uint32(0xcc9e2d51)
@@ -12,6 +15,9 @@ const (
 	magic1    = uint32(0x85ebca6b)
 	magic2    = uint32(0xc2b2ae35)
 	magicSeed = uint32(0xbc9f1d34)
+
+	magicM = uint32(0xc6a4a793)
+	magicR = uint32(24)
 )
 
 type BloomFilter struct {
@@ -26,12 +32,20 @@ func NewBloomFilter(bitesPerKey int) *BloomFilter {
 }
 
 func (b *BloomFilter) Add(key []byte) {
+	b.hashKeys = append(b.hashKeys, Hash(key, magicSeed))
+}
+
+func (b *BloomFilter) MurmurAdd(key []byte) {
 	b.hashKeys = append(b.hashKeys, MurmurHash3Algo(key, magicSeed))
 }
 
 func (b *BloomFilter) Len() (int, int) {
 	n := len(b.hashKeys)
 	return n * b.bytesKey, len(b.hashKeys)
+}
+
+func (b *BloomFilter) KeyLen() int {
+	return len(b.hashKeys)
 }
 
 func (b *BloomFilter) Hash() []byte {
@@ -67,6 +81,33 @@ func (b *BloomFilter) Hash() []byte {
 
 func (b *BloomFilter) Reset() {
 	b.hashKeys = b.hashKeys[:0]
+}
+
+func Hash(data []byte, seed uint32) uint32 {
+	h := seed ^ (uint32(len(data)) * magicM)
+	i := 0
+	ndata := len(data)
+	for n := ndata - (ndata % 4); i < n; i += 4 {
+		h += binary.LittleEndian.Uint32(data[i:])
+		h *= magicM
+		h ^= h >> 16
+	}
+
+	switch ndata - i {
+	case 3:
+		h += uint32(data[i+2]) << 16
+		fallthrough
+	case 2:
+		h += uint32(data[i+1]) << 8
+	case 1:
+		h += uint32(data[i])
+		h *= magicM
+		h ^= h >> magicR
+	case 0:
+	default:
+		panic(errors.New("no reached"))
+	}
+	return h
 }
 
 func MurmurHash3Algo(data []byte, seed uint32) uint32 {

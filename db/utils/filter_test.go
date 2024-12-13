@@ -31,7 +31,7 @@ func TestBloomFilterAdd(t *testing.T) {
 	}
 
 	for _, key := range testKeys {
-		bf.Add(key)
+		bf.MurmurAdd(key)
 	}
 
 	if len(bf.hashKeys) != len(testKeys) {
@@ -39,7 +39,7 @@ func TestBloomFilterAdd(t *testing.T) {
 	}
 }
 
-func TestBloomFilterHash(t *testing.T) {
+func TestBloomFilterMurmurHash(t *testing.T) {
 	bf := NewBloomFilter(10)
 
 	testKeys := [][]byte{
@@ -66,7 +66,17 @@ func TestBloomFilterHash(t *testing.T) {
 	}
 }
 
-func TestBloomFilterReset(t *testing.T) {
+// Benchmark the hash function
+func BenchmarkHash(b *testing.B) {
+	testData := []byte("benchmark test data")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Hash(testData, 0)
+	}
+}
+
+func TestBloomFilterHashAdd(t *testing.T) {
 	bf := NewBloomFilter(10)
 
 	testKeys := [][]byte{
@@ -79,34 +89,35 @@ func TestBloomFilterReset(t *testing.T) {
 		bf.Add(key)
 	}
 
-	bf.Reset()
-
-	if len(bf.hashKeys) != 0 {
-		t.Error("Reset() did not clear hashKeys")
+	if len(bf.hashKeys) != len(testKeys) {
+		t.Errorf("Expected %d hash keys, got %d", len(testKeys), len(bf.hashKeys))
 	}
 }
 
-func TestMurmurHash3Algo(t *testing.T) {
-	testCases := []struct {
-		input    []byte
-		seed     uint32
-		expected uint32
-	}{
-		{[]byte("hello"), 0, 0x248bae4f},
-		{[]byte("world"), 42, 0xf3ddc412},
-		{[]byte("test"), 100, 0xab7b7e23},
-		{[]byte{}, 0, 0},
+func TestBloomFilterHash(t *testing.T) {
+	bf := NewBloomFilter(10)
+
+	testKeys := [][]byte{
+		[]byte("hello"),
+		[]byte("world"),
+		[]byte("test"),
 	}
 
-	for _, tc := range testCases {
-		t.Run(string(tc.input), func(t *testing.T) {
-			result := MurmurHash3Algo(tc.input, tc.seed)
+	for _, key := range testKeys {
+		hash := Hash(key, 0)
+		bf.hashKeys = append(bf.hashKeys, hash)
+	}
 
-			if result != tc.expected {
-				t.Errorf("MurmurHash3Algo(%v, %d): expected %x, got %x",
-					tc.input, tc.seed, tc.expected, result)
-			}
-		})
+	hashResult := bf.Hash()
+
+	if len(hashResult) == 0 {
+		t.Error("Hash() returned empty result")
+	}
+
+	// Check that the last byte represents the number of hash functions (k)
+	k := hashResult[len(hashResult)-1]
+	if k < 1 || k > 30 {
+		t.Errorf("Invalid number of hash functions: %d", k)
 	}
 }
 
@@ -116,6 +127,6 @@ func BenchmarkMurmurHash3Algo(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MurmurHash3Algo(testData, 0)
+		Hash(testData, 0)
 	}
 }

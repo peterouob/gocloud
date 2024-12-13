@@ -2,8 +2,10 @@
   - [x] MemTable (Red black tree)
   - [x] IMemTable
   - [ ] SSTable
+    - [ ] Write the .db file 
   - [ ] Open
   - [x] Wal
+    - [ ] Write the log 
   
 - [ ] Use Kubernetes to deploy the environment 
   - EKS cluster

@@ -3,6 +3,7 @@ package sstable
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
 	"os"
@@ -60,6 +61,65 @@ func (w *SsWriter) addIndex(key []byte) {
 	})
 }
 
-func (w *SsWriter) flushBlock() {}
+func (w *SsWriter) flushBlock() {
+	w.prevBlockOffset = uint64(w.dataBuf.Len())
+	n := binary.PutUvarint(w.indexScratch[0:], w.prevBlockOffset)
 
-func GetSeparator(a, b []byte) []byte {}
+	filter := w.bf.Hash()
+	w.filter[w.prevBlockOffset] = filter
+	w.filterBlock.Append(w.indexScratch[:n], filter)
+	w.bf.Reset()
+	var err error
+	w.prevBlockSize, err = w.dataBlock.FlushBlockTo(w.dataBuf)
+	if err != nil {
+		panic(errors.New("error in flush block to w.dataBuf"))
+	}
+}
+
+func (w *SsWriter) Finish() (int64, map[uint64][]byte, []*Index) {
+	if w.bf.KeyLen() > 0 {
+		w.flushBlock()
+	}
+
+	if _, err := w.filterBlock.FlushBlockTo(w.fileBuf); err != nil {
+		panic(errors.New("error in flush filter block"))
+	}
+	w.addIndex(w.prevKey)
+	if _, err := w.indexBlock.FlushBlockTo(w.indexBuf); err != nil {
+		panic(errors.New("error in flush index block"))
+	}
+
+	footer := make([]byte, w.conf.SstFooterSize)
+	size := w.dataBuf.Len()
+
+	n := binary.PutUvarint(footer[0:], uint64(size))
+	n += binary.PutUvarint(footer[n:], uint64(w.fileBuf.Len()))
+	size += w.fileBuf.Len()
+	n += binary.PutUvarint(footer[n:], uint64(size))
+	n += binary.PutUvarint(footer[n:], uint64(w.indexBuf.Len()))
+	size += w.indexBuf.Len()
+	size += w.conf.SstFooterSize
+
+	w.fd.Write(w.dataBuf.Bytes())
+	w.fd.Write(w.fileBuf.Bytes())
+	w.fd.Write(w.indexBuf.Bytes())
+	w.fd.Write(footer)
+
+	return int64(size), w.filter, w.index
+}
+
+func GetSeparator(a, b []byte) []byte {
+	if len(a) == 0 {
+		n := len(b) - 1
+		c := b[n] - 1
+		return append(b[0:n], c)
+	}
+
+	n := countPrefix(a, b)
+	if n == 0 || n == len(a) {
+		return a
+	} else {
+		c := a[n] + 1
+		return append(a[0:n], c)
+	}
+}

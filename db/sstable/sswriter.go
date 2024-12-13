@@ -2,7 +2,9 @@ package sstable
 
 import (
 	"bytes"
+	"encoding/binary"
 	"github.com/peterouob/gocloud/db/config"
+	"github.com/peterouob/gocloud/db/utils"
 	"os"
 )
 
@@ -14,7 +16,7 @@ type SsWriter struct {
 	indexBuf        *bytes.Buffer
 	index           []*Index
 	filter          map[uint64][]byte
-	bf              *BloomFilter
+	bf              *utils.BloomFilter
 	dataBlock       *Block
 	filterBlock     *Block
 	indexBlock      *Block
@@ -41,6 +43,23 @@ func (w *SsWriter) Append(key, value []byte) {
 	w.bf.Add(key)
 	w.prevKey = key
 
+	if w.dataBlock.Len() > w.conf.SstDataBlockSize {
+		w.flushBlock()
+	}
 }
 
-func (w *SsWriter) addIndex(key []byte) {}
+func (w *SsWriter) addIndex(key []byte) {
+	n := binary.PutUvarint(w.indexScratch[0:], w.prevBlockOffset)
+	n += binary.PutUvarint(w.indexScratch[n:], w.prevBlockSize)
+	separator := GetSeparator(w.prevKey, key)
+	w.indexBlock.Append(separator, w.indexScratch[:n])
+	w.index = append(w.index, &Index{
+		Key:    separator,
+		Offset: w.prevBlockOffset,
+		Size:   w.prevBlockSize,
+	})
+}
+
+func (w *SsWriter) flushBlock() {}
+
+func GetSeparator(a, b []byte) []byte {}

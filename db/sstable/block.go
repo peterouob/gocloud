@@ -78,6 +78,10 @@ func (b *Block) clear() {
 	b.trailers.Reset()
 }
 
+func (b *Block) Len() int {
+	return b.records.Len() + b.trailers.Len() + 4
+}
+
 func countPrefix(a, b []byte) int {
 	i := 0
 	j := max(len(a), len(b))

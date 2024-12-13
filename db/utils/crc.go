@@ -17,3 +17,7 @@ func (c CRC) Update(b []byte) CRC {
 func (c CRC) Value() uint32 {
 	return uint32(c>>15|c<<17) + 0xa282ead8
 }
+
+func CompressedCheckSum(b []byte) uint32 {
+	return crc32.Checksum(b, table)
+}

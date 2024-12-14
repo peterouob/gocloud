@@ -51,9 +51,9 @@ func NewSStWriter(file string, conf *config.Config) (*SsWriter, error) {
 }
 
 type Index struct {
-	Key    []byte
-	Offset uint64
-	Size   uint64
+	Key        []byte
+	PrevOffset uint64
+	PrevSize   uint64
 }
 
 func (w *SsWriter) Append(key, value []byte) {
@@ -78,9 +78,9 @@ func (w *SsWriter) addIndex(key []byte) {
 	separator := GetSeparator(w.prevKey, key)
 	w.indexBlock.Append(separator, w.indexScratch[:n])
 	w.index = append(w.index, &Index{
-		Key:    separator,
-		Offset: w.prevBlockOffset,
-		Size:   w.prevBlockSize,
+		Key:        separator,
+		PrevOffset: w.prevBlockOffset,
+		PrevSize:   w.prevBlockSize,
 	})
 }
 

@@ -3,7 +3,9 @@ package memtable
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -94,11 +96,6 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 
 	w := m.WalWriter.Next()
 	size, err := w.Write(dataBytes)
-	if err != nil {
-		return errors.New("error in write data :" + err.Error())
-	}
-
-	m.MemTree.Insert(key, value)
 
 	m.curSize += size
 	if m.curSize > m.maxSize {
@@ -108,6 +105,13 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 	} else {
 		m.WalWriter.Flush()
 	}
+
+	if err != nil {
+		return errors.New("error in write data :" + err.Error())
+	}
+
+	m.MemTree.Insert(key, value)
+
 	return nil
 }
 
@@ -168,4 +172,27 @@ func (m *MemTable[K, V]) Reset() {
 	m.state = writeAble
 	m.IMemTable.mu.Unlock()
 
+}
+
+func (m *MemTable[K, V]) Restore(file string) (*Tree[K, V], error) {
+	fd, err := os.OpenFile(file, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WAL file: %v", err)
+	}
+	node := NewTree[K, V](m.MemTree.comparator)
+	r := wal.NewReader(fd)
+	for {
+		k, v, err := r.WalNext()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(k) == 0 {
+			break
+		}
+
+		node.Insert(any(k), any(v))
+	}
+
+	return node, nil
 }

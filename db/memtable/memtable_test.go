@@ -21,7 +21,7 @@ func TestMemTableWrite(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 1024, r, w, 10*time.Minute, im)
 	err := m.Put(1, 1)
@@ -32,7 +32,7 @@ func TestMemTableOverflow(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 1024, r, w, 10*time.Minute, im)
 	err := m.Put(1, 1)
@@ -47,7 +47,7 @@ func TestMemTableListen(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	_ = NewMemTable[int, int](compare, 1024, r, w, 10*time.Minute, im)
 	time.Sleep(10 * time.Second)
@@ -57,7 +57,7 @@ func TestMemTableReadEmpty(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 1024, r, w, 10*time.Minute, im)
 	_, err := m.Get(1)
@@ -68,7 +68,7 @@ func TestMemTableRead(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 1024, r, w, 10*time.Minute, im)
 	m.Put(1, 1)
@@ -81,7 +81,7 @@ func TestTimeOutAndRead(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 1024, r, w, 3*time.Second, im)
 	err := m.Put(1, 1)
@@ -98,7 +98,7 @@ func TestImmTable(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 2, r, w, 3*time.Minute, im)
 
@@ -122,7 +122,7 @@ func TestTimeout(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
 	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf, dropper{t}, false, true)
+	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
 	m := NewMemTable[int, int](compare, 4*1024+9, r, w, 1*time.Second, im)
 	err := m.Put(1, 1)

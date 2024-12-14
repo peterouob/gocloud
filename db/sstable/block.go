@@ -19,6 +19,18 @@ type Block struct {
 	compression []byte //壓縮
 }
 
+func NewBlock(conf *config.Config) *Block {
+	return &Block{
+		conf:        conf,
+		header:      [30]byte{},
+		records:     bytes.NewBuffer(make([]byte, 0)),
+		trailers:    bytes.NewBuffer(make([]byte, 0)),
+		n:           0,
+		prvKey:      make([]byte, 0),
+		compression: make([]byte, 0),
+	}
+}
+
 func (b *Block) Append(key, value []byte) {
 	klen := len(key)
 	vlen := len(value)

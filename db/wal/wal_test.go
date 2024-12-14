@@ -4,33 +4,20 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"testing"
 )
 
-type dropper struct {
-	t *testing.T
-}
-
-func (d dropper) Drop(err error) {
-	d.t.Log(err)
-}
-
 func TestEmpty(t *testing.T) {
 	buf := new(bytes.Buffer)
-	r := NewReader(buf, dropper{t}, true, true)
+	r := NewReader(buf)
 	if _, err := r.Next(); err != io.EOF {
 		t.Fatalf("need=%v, got=%v", io.EOF, err)
 	}
-}
-
-func TestReaderState(t *testing.T) {
-	buf := new(bytes.Buffer)
-	r := NewReader(buf, dropper{t}, true, true)
-	oldr := r.State[0]
-	assert.Equal(t, oldr, r)
 }
 
 type mockDropper struct {
@@ -71,7 +58,7 @@ func TestWriterBlockBoundary(t *testing.T) {
 
 	writer.Close()
 
-	reader := NewReader(buf, nil, false, true)
+	reader := NewReader(buf)
 	chunk, err := reader.Next()
 	assert.NoError(t, err)
 
@@ -126,7 +113,7 @@ func TestReaderErrorHandling(t *testing.T) {
 				buf.Write(chunk)
 			}
 
-			reader := NewReader(buf, dropper, true, true)
+			reader := NewReader(buf)
 			_, err := reader.Next()
 
 			if tc.expectError {
@@ -158,7 +145,7 @@ func TestWriterReset(t *testing.T) {
 	writer.Close()
 
 	// Verify buf2 contains only the second write
-	reader := NewReader(buf2, nil, false, true)
+	reader := NewReader(buf2)
 	chunk, err := reader.Next()
 	assert.NoError(t, err)
 
@@ -195,7 +182,7 @@ func FuzzWriterReader(f *testing.F) {
 
 		writer.Close()
 
-		reader := NewReader(buf, nil, false, true)
+		reader := NewReader(buf)
 		chunk, err := reader.Next()
 		assert.NoError(t, err)
 
@@ -245,7 +232,7 @@ func TestWriterBasicUsage(t *testing.T) {
 
 	debugPrintBuffer(buf)
 
-	reader := NewReader(buf, nil, false, true)
+	reader := NewReader(buf)
 
 	chunk1, err := reader.Next()
 	assert.NoError(t, err, "Failed to get first chunk")
@@ -285,4 +272,15 @@ func TestChunkCreation(t *testing.T) {
 
 	length := binary.LittleEndian.Uint16(bufBytes[4:6])
 	assert.Equal(t, uint16(len(data)), length, "Incorrect length in header")
+}
+
+func TestWALManager_LogWrite(t *testing.T) {
+	m, err := NewWALManager(config.NewConfig("./log"), 1024*1024)
+	assert.NoError(t, err)
+	key := []byte("hello")
+	value := []byte("world")
+	err = m.LogWrite(key, value)
+	assert.NoError(t, err)
+	log.Printf("%v", m.w.buf)
+	log.Printf("%v", m.w.Size())
 }

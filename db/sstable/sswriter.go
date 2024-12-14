@@ -7,6 +7,7 @@ import (
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
 	"os"
+	"path"
 )
 
 type SsWriter struct {
@@ -25,6 +26,28 @@ type SsWriter struct {
 	prevKey         []byte
 	prevBlockOffset uint64
 	prevBlockSize   uint64
+}
+
+func NewSStWriter(file string, conf *config.Config) (*SsWriter, error) {
+	fd, err := os.OpenFile(path.Join(conf.Dir, file), os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, errors.New("create file error :" + err.Error())
+	}
+	return &SsWriter{
+		conf:         conf,
+		fd:           fd,
+		dataBuf:      bytes.NewBuffer(make([]byte, 0)),
+		fileBuf:      bytes.NewBuffer(make([]byte, 0)),
+		indexBuf:     bytes.NewBuffer(make([]byte, 0)),
+		index:        make([]*Index, 0),
+		filter:       make(map[uint64][]byte),
+		bf:           utils.NewBloomFilter(10),
+		dataBlock:    NewBlock(conf),
+		filterBlock:  NewBlock(conf),
+		indexBlock:   NewBlock(conf),
+		indexScratch: [20]byte{},
+		prevKey:      make([]byte, 0),
+	}, nil
 }
 
 type Index struct {

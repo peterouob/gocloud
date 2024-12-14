@@ -179,7 +179,7 @@ func TestWriterSize(t *testing.T) {
 
 	writer.Close()
 
-	// Size should be more than 0 after writing
+	// PrevSize should be more than 0 after writing
 	assert.Greater(t, writer.Size(), int64(0))
 }
 

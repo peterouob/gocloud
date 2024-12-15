@@ -3,8 +3,13 @@ package wal
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/peterouob/gocloud/db/utils"
 	"io"
+	"log"
+	"math"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -19,14 +24,44 @@ type Writer struct {
 	first       bool
 	pending     bool
 	buf         [blockSize]byte
+	fd          *os.File
+	count       int
+	fdSize      int
 }
+
+const maxFdSize = 100
 
 func NewWriter(w io.Writer) *Writer {
 	f, _ := w.(flusher)
-	return &Writer{
+	writer := &Writer{
 		w: w,
 		f: f,
 	}
+	if err := writer.rotationWALFile(); err != nil {
+		panic(errors.New("error in rotation wal file: " + err.Error()))
+	}
+	return writer
+}
+
+func (w *Writer) rotationWALFile() error {
+
+	log.Println("create file...")
+	err := os.MkdirAll("./log/", 0755)
+	if !errors.Is(err, os.ErrExist) && err != nil {
+		panic(errors.New("error in call os.MkdirAll: " + err.Error()))
+	}
+	w.count++
+	filename := fmt.Sprintf("wal_%d.log", w.count)
+	path := filepath.Join("./log/", filename)
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		return fmt.Errorf("failed to create WAL file: %v", err)
+	}
+
+	w.fd = file
+	w.w = io.MultiWriter(w.w, file)
+	return nil
 }
 
 func (w *Writer) fillHeader(last bool) {
@@ -51,15 +86,40 @@ func (w *Writer) fillHeader(last bool) {
 	binary.LittleEndian.PutUint16(w.buf[w.i+4:w.i+6], uint16(w.j-w.i-headerSize))
 }
 
-func (w *Writer) writeBlock() {
-	if _, err := w.w.Write(w.buf[w.written:]); err != nil {
-		panic(errors.New("error in call w.w.Write in writeBlock" + err.Error()))
+func (w *Writer) writeBlock() error {
+
+	if w.mu.TryLock() {
+		defer w.mu.Unlock()
+	}
+
+	if _, err := w.w.Write(w.buf[w.written:w.j]); err != nil {
+		return fmt.Errorf("failed to write to writer: %v", err)
+	}
+
+write:
+	if w.fdSize < 20 {
+		if w.fd != nil {
+			if _, err := w.fd.Write(w.buf[w.written:w.j]); err != nil {
+				return fmt.Errorf("failed to write to file: %v", err)
+			}
+			w.fdSize += len(w.buf[w.written:w.j])
+			log.Println(w.fdSize)
+		}
+	} else {
+		err := w.rotationWALFile()
+		if err != nil {
+			return err
+		}
+		w.fdSize = int(math.Abs(float64(20 - int(w.fdSize))))
+		goto write
 	}
 
 	w.i = 0
 	w.j = headerSize
 	w.written = 0
 	w.blockNumber++
+
+	return nil
 }
 
 func (w *Writer) writePending() {
@@ -74,12 +134,30 @@ func (w *Writer) writePending() {
 	w.written = w.j
 }
 
-func (w *Writer) Close() {
+func (w *Writer) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.seq++
-	w.writePending()
+
+	if w.j > headerSize {
+		if err := w.writeBlock(); err != nil {
+			return err
+		}
+	}
+
+	if w.fd != nil {
+		if err := w.fd.Sync(); err != nil {
+			return fmt.Errorf("failed to sync file: %v", err)
+		}
+
+		if err := w.fd.Close(); err != nil {
+			return fmt.Errorf("failed to close file: %v", err)
+		}
+		w.fd = nil
+	}
+
+	return nil
 }
 
 func (w *Writer) Flush() {
@@ -88,9 +166,11 @@ func (w *Writer) Flush() {
 
 	w.seq++
 	w.writePending()
-
 	if w.f != nil {
-		w.f.Flush()
+		err := w.f.Flush()
+		if err != nil {
+			panic(errors.New("error in call Flush: " + err.Error()))
+		}
 	}
 }
 func (w *Writer) Reset(writer io.Writer) {
@@ -117,7 +197,10 @@ func (w *Writer) Next() io.Writer {
 		for k := w.i; k < blockSize; k++ {
 			w.buf[k] = 0
 		}
-		w.writeBlock()
+		err := w.writeBlock()
+		if err != nil {
+			panic(errors.New("error in call w.writeBlock: " + err.Error()))
+		}
 	}
 	w.first = true
 	w.pending = true
@@ -145,7 +228,10 @@ func (s singleWriter) Write(p []byte) (int, error) {
 	for len(p) > 0 {
 		if w.j == blockSize {
 			w.fillHeader(false)
-			w.writeBlock()
+			err := w.writeBlock()
+			if err != nil {
+				return n0, errors.New("error in call w.writeBlock: " + err.Error())
+			}
 			w.first = false
 		}
 		n := copy(w.buf[w.j:], p)

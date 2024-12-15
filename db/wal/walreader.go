@@ -106,15 +106,6 @@ func (r *Reader) nextChunk(first bool) error {
 				return r.corrupt(chunkSize, "orphan chunk", true)
 			}
 
-			//correct
-			if first && (chunkType == fullType || chunkType == firstType) {
-				r.data = r.buf[r.i:r.j]
-			} else if chunkType == middleType {
-				r.data = append(r.data, r.buf[r.i:r.j]...)
-			} else if chunkType == lastType {
-				r.data = append(r.data, r.buf[r.i:r.j]...)
-			}
-
 			r.last = (chunkType == fullType) || (chunkType == lastType)
 			return nil
 		}

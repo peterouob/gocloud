@@ -1,11 +1,8 @@
 package kv
 
-type status uint8
-
 type KV[K any, V any] struct {
-	Key    any
-	Value  any
-	Status status
+	Key   any
+	Value any
 }
 
 func NewKV[K any, V any](key K, value V) *KV[K, V] {

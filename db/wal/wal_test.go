@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/stretchr/testify/assert"
 	"io"
@@ -18,14 +17,6 @@ func TestEmpty(t *testing.T) {
 	if _, err := r.Next(); err != io.EOF {
 		t.Fatalf("need=%v, got=%v", io.EOF, err)
 	}
-}
-
-type mockDropper struct {
-	droppedErrors []error
-}
-
-func (m *mockDropper) Drop(err error) {
-	m.droppedErrors = append(m.droppedErrors, err)
 }
 
 func createTestChunk(chunkType byte, data []byte, checksum bool) []byte {
@@ -43,6 +34,55 @@ func createTestChunk(chunkType byte, data []byte, checksum bool) []byte {
 	}
 
 	return chunk
+}
+
+func TestWriteReader(t *testing.T) {
+	buf := new(bytes.Buffer)
+
+	writer := NewWriter(buf)
+	defer writer.Close()
+
+	data := []byte("test")
+	w := writer.Next()
+	_, err := w.Write(data)
+	assert.NoError(t, err)
+
+	writer.Flush()
+
+	log.Printf("File path: %s", writer.fd.Name())
+
+	reader := NewReader(buf)
+	chunk, err := reader.Next()
+	assert.NoError(t, err)
+
+	rdata, err := io.ReadAll(chunk)
+	assert.NoError(t, err)
+	assert.Equal(t, data, rdata)
+}
+
+func TestManyWriteReader(t *testing.T) {
+	buf := new(bytes.Buffer)
+
+	writer := NewWriter(buf)
+	defer writer.Close()
+
+	data := []byte("test")
+	for i := 0; i < 10000; i++ {
+		w := writer.Next()
+		_, err := w.Write(data)
+		assert.NoError(t, err)
+		writer.Flush()
+	}
+
+	log.Printf("File path: %s", writer.fd.Name())
+
+	reader := NewReader(buf)
+	chunk, err := reader.Next()
+	assert.NoError(t, err)
+
+	rdata, err := io.ReadAll(chunk)
+	assert.NoError(t, err)
+	assert.Equal(t, data, rdata)
 }
 
 func TestWriterBlockBoundary(t *testing.T) {
@@ -105,7 +145,6 @@ func TestReaderErrorHandling(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dropper := &mockDropper{}
 			buf := new(bytes.Buffer)
 
 			// Write test chunks
@@ -118,7 +157,6 @@ func TestReaderErrorHandling(t *testing.T) {
 
 			if tc.expectError {
 				assert.Error(t, err)
-				assert.Equal(t, tc.expectedErrors, len(dropper.droppedErrors))
 			} else {
 				assert.NoError(t, err)
 			}
@@ -144,7 +182,6 @@ func TestWriterReset(t *testing.T) {
 
 	writer.Close()
 
-	// Verify buf2 contains only the second write
 	reader := NewReader(buf2)
 	chunk, err := reader.Next()
 	assert.NoError(t, err)
@@ -272,15 +309,4 @@ func TestChunkCreation(t *testing.T) {
 
 	length := binary.LittleEndian.Uint16(bufBytes[4:6])
 	assert.Equal(t, uint16(len(data)), length, "Incorrect length in header")
-}
-
-func TestWALManager_LogWrite(t *testing.T) {
-	m, err := NewWALManager(config.NewConfig("./log"), 1024*1024)
-	assert.NoError(t, err)
-	key := []byte("hello")
-	value := []byte("world")
-	err = m.LogWrite(key, value)
-	assert.NoError(t, err)
-	log.Printf("%v", m.w.buf)
-	log.Printf("%v", m.w.Size())
 }

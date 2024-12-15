@@ -9,14 +9,6 @@ import (
 	"time"
 )
 
-type dropper struct {
-	t *testing.T
-}
-
-func (d dropper) Drop(err error) {
-	d.t.Log(err)
-}
-
 func TestMemTableWrite(t *testing.T) {
 	compare := &utils.OrderComparator[int]{}
 	buf := new(bytes.Buffer)
@@ -116,6 +108,24 @@ func TestImmTable(t *testing.T) {
 	assert.Equal(t, im.Len(), 3)
 	_, err = m.Get(1)
 	assert.Error(t, err)
+}
+
+func TestManyWrite(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := NewIMemTable[int, int]()
+	m := NewMemTable[int, int](compare, 4*1024+9, r, w, 1*time.Second, im)
+	for i := 0; i < 10000; i++ {
+		err := m.Put(1, 1)
+		assert.NoError(t, err)
+	}
+	v, err := m.Get(1)
+	assert.NoError(t, err)
+	t.Log(v)
+	t.Log(m.curSize)
+	t.Log(m.IMemTable.Len())
 }
 
 func TestTimeout(t *testing.T) {

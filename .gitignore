@@ -6,3 +6,7 @@
 *.iml
 out
 gen
+*.log
+*/*/*.log
+*/*.log
+*/*/*/*.log

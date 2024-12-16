@@ -8,7 +8,7 @@
     - [ ] Write the .db file 
   - [ ] Open
   - [x] Wal
-    - [ ] Write the log 
+    - [x] Write the log 
 
 ```text
 open->lsm->walManager-> write log if log count > maxCount -> memtable

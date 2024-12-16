@@ -116,12 +116,13 @@ func TestManyWrite(t *testing.T) {
 	w := wal.NewWriter(buf)
 	r := wal.NewReader(buf)
 	im := NewIMemTable[int, int]()
-	m := NewMemTable[int, int](compare, 4*1024+9, r, w, 1*time.Second, im)
-	for i := 0; i < 10000; i++ {
-		err := m.Put(1, 1)
+	m := NewMemTable[int, int](compare, 4*1024*1024+9, r, w, 1*time.Second, im)
+	for i := 0; i < 15000; i++ {
+		// TODO:slice overflow
+		err := m.Put(i%10, 1)
 		assert.NoError(t, err)
 	}
-	v, err := m.Get(1)
+	v, err := m.Get(10000)
 	assert.NoError(t, err)
 	t.Log(v)
 	t.Log(m.curSize)

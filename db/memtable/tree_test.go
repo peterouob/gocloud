@@ -86,7 +86,7 @@ func TestRedBlackTreeInsertion(t *testing.T) {
 				t.Errorf("Expected size %d, got %d", tc.expectedSize, tree.Size)
 			}
 
-			if err := validateRedBlackProperties(tree.root, tree.leaf); err != nil {
+			if err := validateRedBlackProperties(tree.root, tree.Leaf); err != nil {
 				t.Errorf("Red-Black Tree property violation: %v", err)
 			}
 		})
@@ -187,4 +187,38 @@ func TestTree_DeepCopy(t *testing.T) {
 	clonedTree.TraverseNodes(func(node *Node[int, int]) {
 		fmt.Printf("Key: %d, Value: %d\n", node.Key, node.Value)
 	}, nil)
+}
+
+func TestTreeNext(t *testing.T) {
+	compare := &utils.OrderComparator[int]{}
+	tree := NewTree[int, string](compare)
+
+	tree.Insert(5, "five")
+	tree.Insert(3, "three")
+	tree.Insert(7, "seven")
+	tree.Insert(1, "one")
+	tree.Insert(4, "four")
+
+	var keys []int
+	var values []string
+
+	for {
+		nextNode, found := tree.Next(keys)
+		if !found {
+			break
+		}
+
+		keys = append(keys, nextNode.Key)
+		values = append(values, nextNode.Value)
+
+		t.Logf("Key: %v, Value: %v\n", nextNode.Key, nextNode.Value)
+	}
+
+	for _, key := range keys {
+		t.Logf("Key: %v", key)
+	}
+
+	for _, value := range values {
+		t.Logf("Value: %v", value)
+	}
 }

@@ -26,7 +26,7 @@ var _ RedBlackTree[int, int] = (*Tree[int, int])(nil)
 
 type Tree[K any, V any] struct {
 	root       *Node[K, V]
-	leaf       *Node[K, V]
+	Leaf       *Node[K, V]
 	comparator utils.Comparator[K]
 	Size       int
 }
@@ -43,8 +43,8 @@ type Node[K any, V any] struct {
 
 func NewTree[K any, V any](comparator utils.Comparator[K]) *Tree[K, V] {
 	tree := new(Tree[K, V])
-	tree.leaf = &Node[K, V]{color: black}
-	tree.root = tree.leaf
+	tree.Leaf = &Node[K, V]{color: black}
+	tree.root = tree.Leaf
 	tree.comparator = comparator
 	return tree
 }
@@ -52,11 +52,11 @@ func NewTree[K any, V any](comparator utils.Comparator[K]) *Tree[K, V] {
 func (tree *Tree[K, V]) leftRotation(node *Node[K, V]) {
 	right := node.right
 	node.right = right.left
-	if right.left != tree.leaf {
+	if right.left != tree.Leaf {
 		right.left.parent = node
 	}
 	right.parent = node.parent
-	if node.parent == tree.leaf {
+	if node.parent == tree.Leaf {
 		tree.root = right
 	} else if node == node.parent.left {
 		node.parent.left = right
@@ -70,11 +70,11 @@ func (tree *Tree[K, V]) leftRotation(node *Node[K, V]) {
 func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 	left := node.left
 	node.left = left.right
-	if left.right != tree.leaf {
+	if left.right != tree.Leaf {
 		left.right.parent = node
 	}
 	left.parent = node.parent
-	if node.parent == tree.leaf {
+	if node.parent == tree.Leaf {
 		tree.root = left
 	} else if node == node.parent.right {
 		node.parent.right = left
@@ -86,22 +86,22 @@ func (tree *Tree[K, V]) rightRotation(node *Node[K, V]) {
 }
 
 func (tree *Tree[K, V]) Insert(key K, value V) {
-	if tree.root == tree.leaf {
+	if tree.root == tree.Leaf {
 		node := &Node[K, V]{
 			Key:    key,
 			Value:  value,
 			color:  black,
-			parent: tree.leaf,
-			left:   tree.leaf,
-			right:  tree.leaf,
+			parent: tree.Leaf,
+			left:   tree.Leaf,
+			right:  tree.Leaf,
 		}
 		tree.root = node
 		tree.Size++
 		return
 	}
-	parent := tree.leaf
+	parent := tree.Leaf
 	cur := tree.root
-	for cur != tree.leaf {
+	for cur != tree.Leaf {
 		parent = cur
 		cmpResult := tree.comparator.Compare(key, cur.Key)
 		switch {
@@ -120,8 +120,8 @@ func (tree *Tree[K, V]) Insert(key K, value V) {
 		Value:  value,
 		color:  red,
 		parent: parent,
-		left:   tree.leaf,
-		right:  tree.leaf,
+		left:   tree.Leaf,
+		right:  tree.Leaf,
 	}
 
 	if tree.comparator.Compare(key, parent.Key) < 0 {
@@ -181,7 +181,7 @@ func (tree *Tree[K, V]) fixAfterInsert(node *Node[K, V]) {
 
 func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
 	cur := tree.root
-	for cur != tree.leaf {
+	for cur != tree.Leaf {
 		cmpResult := tree.comparator.Compare(key, cur.Key)
 		switch {
 		case cmpResult > 0:
@@ -196,7 +196,7 @@ func (tree *Tree[K, V]) FindKey(key K) *Node[K, V] {
 }
 
 func (tree *Tree[K, V]) Delete(key K) {
-	if tree.leaf == nil {
+	if tree.Leaf == nil {
 		return
 	}
 	if node := tree.FindKey(key); node != nil {
@@ -205,12 +205,12 @@ func (tree *Tree[K, V]) Delete(key K) {
 }
 
 func (tree *Tree[K, V]) TraverseNodes(fn func(node *Node[K, V]), dfn func(node *Node[K, V])) {
-	if tree.root == tree.leaf {
+	if tree.root == tree.Leaf {
 		return
 	}
 	var traverse func(node *Node[K, V])
 	traverse = func(node *Node[K, V]) {
-		if node == tree.leaf {
+		if node == tree.Leaf {
 			return
 		}
 		traverse(node.left)
@@ -225,12 +225,12 @@ func (tree *Tree[K, V]) TraverseNodes(fn func(node *Node[K, V]), dfn func(node *
 }
 
 func (tree *Tree[K, V]) TraverseNodesWithoutDelete(fn func(node *Node[K, V])) {
-	if tree.root == tree.leaf {
+	if tree.root == tree.Leaf {
 		return
 	}
 	var traverse func(node *Node[K, V])
 	traverse = func(node *Node[K, V]) {
-		if node == tree.leaf {
+		if node == tree.Leaf {
 			return
 		}
 		traverse(node.left)
@@ -247,11 +247,11 @@ func (tree *Tree[K, V]) DeepCopy() *Tree[K, V] {
 		return nil
 	}
 
-	if tree.leaf == nil {
-		tree.leaf = &Node[K, V]{color: black}
+	if tree.Leaf == nil {
+		tree.Leaf = &Node[K, V]{color: black}
 	}
 	newTree := NewTree[K, V](tree.comparator)
-	newTree.root = deepCopyNode(tree.root, tree.leaf, newTree.leaf)
+	newTree.root = deepCopyNode(tree.root, tree.Leaf, newTree.Leaf)
 
 	newTree.Size = tree.Size
 
@@ -271,4 +271,45 @@ func deepCopyNode[K, V any](node, sourceLeaf, targetLeaf *Node[K, V]) *Node[K, V
 	cloned.left = deepCopyNode(node.left, sourceLeaf, targetLeaf)
 	cloned.right = deepCopyNode(node.right, sourceLeaf, targetLeaf)
 	return cloned
+}
+
+func (tree *Tree[K, V]) Next(keys []K) (*Node[K, V], bool) {
+	if tree.root == tree.Leaf {
+		return nil, false
+	}
+
+	if len(keys) == 0 {
+		cur := tree.root
+		for cur.left != tree.Leaf {
+			cur = cur.left
+		}
+		return cur, true
+	}
+
+	lastKey := keys[len(keys)-1]
+	currentNode := tree.FindKey(lastKey)
+
+	if currentNode == nil {
+		return nil, false
+	}
+
+	if currentNode.right != tree.Leaf {
+		node := currentNode.right
+		for node.left != tree.Leaf {
+			node = node.left
+		}
+		return node, true
+	}
+
+	parent := currentNode.parent
+	for parent != tree.Leaf && currentNode == parent.right {
+		currentNode = parent
+		parent = parent.parent
+	}
+
+	if parent == tree.Leaf {
+		return nil, false
+	}
+
+	return parent, true
 }

@@ -19,14 +19,6 @@ const (
 	readOnly
 )
 
-type mockDropper struct {
-	droppedErrors []error
-}
-
-func (m *mockDropper) Drop(err error) {
-	m.droppedErrors = append(m.droppedErrors, err)
-}
-
 type MemTable[K any, V any] struct {
 	MemTree     *Tree[K, V]
 	WalReader   *wal.Reader
@@ -111,6 +103,8 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 	if m.curSize > 1024 {
 		m.MemTree.Insert(key, value)
 	}
+
+	m.MemTree.Insert(key, value)
 
 	return nil
 }

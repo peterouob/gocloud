@@ -146,3 +146,15 @@ func GetSeparator(a, b []byte) []byte {
 		return append(a[0:n], c)
 	}
 }
+
+func (w *SsWriter) Size() int {
+	return w.dataBuf.Len()
+}
+
+func (w *SsWriter) Close() {
+	if err := w.fd.Close(); err != nil {
+		panic(errors.New("error in close w.fd : " + err.Error()))
+	}
+	w.dataBuf.Reset()
+	w.indexBuf.Reset()
+}

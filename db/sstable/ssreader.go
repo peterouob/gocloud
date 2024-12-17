@@ -226,3 +226,13 @@ func ReadIndex(index []byte) []*Index {
 
 	return indexes
 }
+
+func (r *SStReader) Destroy() {
+	r.reader.Reset(r.fd)
+	if err := r.fd.Close(); err != nil {
+		panic(errors.New("error in close fd : " + err.Error()))
+	}
+	if err := os.Remove(r.fd.Name()); err != nil {
+		panic(errors.New("error in remove file : " + err.Error()))
+	}
+}

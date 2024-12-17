@@ -100,7 +100,94 @@ func (t *LSMTree[K, V]) FlushRecord(memtable *memtable.MemTable[K, V], extra str
 	return nil
 }
 
-func (t *LSMTree[K, V]) insertNode(node *Node) {}
+func (t *LSMTree[K, V]) insertNode(node *Node) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	level := node.Level
+	length := len(t.tree[level])
+
+	if length == 0 {
+		t.tree[level] = []*Node{node}
+		return
+	}
+
+	if level == 0 {
+		idx := length - 1
+		for ; idx >= 0; idx-- {
+			if node.SeqNo > t.tree[level][idx].SeqNo {
+				break
+			} else if node.SeqNo == t.tree[level][idx].SeqNo {
+				t.tree[level][idx] = node
+				return
+			}
+		}
+		t.tree[level] = append(t.tree[level][:idx+1], t.tree[level][idx:]...)
+		t.tree[level][idx+1] = node
+	} else {
+		for i, n := range t.tree[level] {
+			cmp := bytes.Compare(n.startKey, node.startKey)
+			if cmp < 0 {
+				t.tree[level] = append(t.tree[level][:i+1], t.tree[level][i:]...)
+				t.tree[level][i] = node
+				return
+			}
+		}
+		t.tree[level] = append(t.tree[level], node)
+	}
+}
+
+func (t *LSMTree[K, V]) PickCompactionNode(level int) []*Node {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	compactionNode := make([]*Node, 0)
+	if len(t.tree[level]) == 0 {
+		return compactionNode
+	}
+
+	// for level 0
+	startKey := t.tree[level][0].startKey
+	endKey := t.tree[level][0].endKey
+
+	if level != 0 {
+		node := t.tree[level][(len(t.tree[level])-1)/2] // find middle point
+		if bytes.Compare(node.startKey, startKey) < 0 {
+			startKey = node.startKey
+		}
+		if bytes.Compare(node.endKey, endKey) > 0 {
+			endKey = node.endKey
+		}
+	}
+
+	for i := level + 1; i >= level; i-- {
+		for _, node := range t.tree[i] {
+			if node.index == nil {
+				continue
+			}
+
+			nodeStartKey := node.index[0].Key
+			nodeEndKey := node.index[len(node.index)-1].Key
+
+			if bytes.Compare(startKey, nodeEndKey) <= 0 &&
+				bytes.Compare(endKey, nodeStartKey) >= 0 &&
+				!node.compacting {
+				compactionNode = append(compactionNode, node)
+				node.compacting = true
+				if i == level+1 {
+					if bytes.Compare(nodeStartKey, startKey) < 0 {
+						startKey = node.startKey
+					}
+					if bytes.Compare(nodeEndKey, endKey) > 0 {
+						endKey = node.endKey
+					}
+				}
+			}
+		}
+	}
+
+	return compactionNode
+}
 
 func (t *LSMTree[K, V]) NextSeqNo(level int) int {
 	t.mu.Lock()

@@ -1,7 +1,7 @@
 ### Example user template template
 ### Example user template
 
-# IntelliJ project files
+# IntelliJ project file
 .idea
 *.iml
 out
@@ -10,3 +10,7 @@ gen
 */*/*.log
 */*.log
 */*/*/*.log
+*.sst
+*/*/*.sst
+*/*.sst
+*/*/*/*.sst

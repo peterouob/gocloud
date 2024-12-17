@@ -137,3 +137,87 @@ func formatKeyValue[K any, V any](key K, value V) ([]byte, []byte) {
 	}
 	return bKey, bValue
 }
+
+func (t *LSMTree[K, V]) removeNode(nodes []*Node) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, node := range nodes {
+		log.Printf("remove %d_%d_%s.sst", node.Level, node.SeqNo, node.Extra)
+		for i, tn := range t.tree[node.Level] {
+			if tn.SeqNo == node.SeqNo {
+				t.tree[node.Level] = append(t.tree[node.Level][:i], t.tree[node.Level][i+1:]...)
+				break
+			}
+		}
+	}
+
+	go func() {
+		for _, n := range nodes {
+			n.destroy()
+		}
+	}()
+}
+
+func (t *LSMTree[K, V]) CheckCompaction() {
+	level0 := make(chan struct{}, 100)
+	levelN := make(chan int, 100)
+
+	go func() {
+		for {
+			select {
+			case <-level0:
+				if len(t.tree[0]) > 4 {
+					log.Printf("level0 compaction ..., num: %d", len(t.tree[0]))
+					if err := t.compaction(0); err != nil {
+						panic(errors.New(err.Error()))
+					}
+				}
+			case <-t.stopChan:
+				close(level0)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case lvn := <-levelN:
+				var prevSize int64
+				maxNodeSize := int64(t.conf.SstSize * int(math.Pow10(lvn+1)))
+				for {
+					var totalSize int64
+					for _, node := range t.tree[lvn] {
+						totalSize += node.FileSize
+					}
+					if totalSize > maxNodeSize && (prevSize == 0 || totalSize < prevSize) {
+						if err := t.compaction(lvn); err != nil {
+							panic(errors.New(err.Error()))
+						} else {
+							break
+						}
+					}
+				}
+			case <-t.stopChan:
+				close(levelN)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-t.stopChan:
+				return
+			case lv := <-t.compactChan:
+				if lv == 0 {
+					level0 <- struct{}{}
+				} else {
+					levelN <- lv
+				}
+			}
+		}
+	}()
+}

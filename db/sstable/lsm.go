@@ -65,6 +65,27 @@ type LSMTree[K any, V any] struct {
 	stopChan    chan struct{}
 }
 
+func NewLSMTree[K any, V any](conf *config.Config) *LSMTree[K, V] {
+	compactionChan := make(chan int, 100)
+	levelTree := make([][]*Node, conf.MaxLevel)
+
+	for i := range levelTree {
+		levelTree[i] = make([]*Node, 0)
+	}
+
+	seqNos := make([]int, conf.MaxLevel)
+	lsmt := &LSMTree[K, V]{
+		conf:        conf,
+		tree:        levelTree,
+		seqNo:       seqNos,
+		compactChan: compactionChan,
+		stopChan:    make(chan struct{}),
+	}
+
+	lsmt.CheckCompaction()
+	return lsmt
+}
+
 func (t *LSMTree[K, V]) FlushRecord(memtable *memtable.MemTable[K, V], extra string) error {
 	level := 0
 	seqNo := t.NextSeqNo(level)

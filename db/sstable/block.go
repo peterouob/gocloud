@@ -3,6 +3,7 @@ package sstable
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"github.com/golang/snappy"
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
@@ -32,55 +33,81 @@ func NewBlock(conf *config.Config) *Block {
 }
 
 func (b *Block) Append(key, value []byte) {
+	// Calculate shared prefix with previous key
 	klen := len(key)
 	vlen := len(value)
 	nprefix := 0
 
+	// Add restart point if needed
 	if b.n%b.conf.SstRestartInterval == 0 {
 		buf4 := make([]byte, 4)
 		binary.LittleEndian.PutUint32(buf4, uint32(b.records.Len()))
 		b.trailers.Write(buf4)
+		nprefix = 0 // Force full key at restart points
 	} else {
-		nprefix = countPrefix(b.prvKey, key)
+		nprefix = SharedPrefixLen(b.prvKey, key)
 	}
 
+	// Write header (lengths)
 	n := binary.PutUvarint(b.header[0:], uint64(nprefix))
 	n += binary.PutUvarint(b.header[n:], uint64(klen-nprefix))
 	n += binary.PutUvarint(b.header[n:], uint64(vlen))
 
-	b.records.Write(b.header[:n])
-	b.records.Write(key[nprefix:])
-	b.records.Write(value)
+	// Write record
+	if _, err := b.records.Write(b.header[:n]); err != nil {
+		panic(err)
+	}
+	if _, err := b.records.Write(key[nprefix:]); err != nil {
+		panic(err)
+	}
+	if _, err := b.records.Write(value); err != nil {
+		panic(err)
+	}
 
+	// Update state
 	b.prvKey = append(b.prvKey[:0], key...)
 	b.n++
 }
 
 func (b *Block) compress() []byte {
+	// Add final restart point count
 	buf4 := make([]byte, 4)
-	binary.LittleEndian.PutUint32(buf4, uint32(b.trailers.Len())/4)
+	binary.LittleEndian.PutUint32(buf4, uint32(b.trailers.Len()/4))
 	b.trailers.Write(buf4)
 
-	b.records.Write(b.trailers.Bytes())
+	// Combine all data
+	totalSize := b.records.Len() + b.trailers.Len()
+	rawData := make([]byte, totalSize)
+	copy(rawData, b.records.Bytes())
+	copy(rawData[b.records.Len():], b.trailers.Bytes())
 
-	n := snappy.MaxEncodedLen(b.records.Len())
-	if n > len(b.compression) {
-		b.compression = make([]byte, n+b.conf.SstBlockTrailerSize)
-	}
+	// Compress the data
+	compressed := snappy.Encode(nil, rawData)
 
-	compressed := snappy.Encode(b.compression, b.records.Bytes())
+	// Add CRC
+	result := make([]byte, len(compressed)+4)
+	copy(result, compressed)
+
+	// Calculate and append checksum
 	crc := utils.CompressedCheckSum(compressed)
-	size := len(compressed)
-	compressed = compressed[:size+b.conf.SstBlockTrailerSize]
-	binary.LittleEndian.PutUint32(compressed[:size], crc)
+	binary.LittleEndian.PutUint32(result[len(compressed):], crc)
 
-	return compressed
+	return result
 }
 
 func (b *Block) FlushBlockTo(w io.Writer) (uint64, error) {
-	defer b.clear()
-	n, err := w.Write(b.compression)
-	return uint64(n), err
+	compressed := b.compress()
+	if compressed == nil {
+		return 0, errors.New("compression failed")
+	}
+
+	written, err := w.Write(compressed)
+	if err != nil {
+		return 0, err
+	}
+
+	b.clear()
+	return uint64(written), nil
 }
 
 func (b *Block) clear() {
@@ -94,11 +121,6 @@ func (b *Block) Len() int {
 	return b.records.Len() + b.trailers.Len() + 4
 }
 
-func countPrefix(a, b []byte) int {
-	i := 0
-	j := max(len(a), len(b))
-	for i < j && a[i] == b[i] {
-		i++
-	}
-	return i
+func (b *Block) Size() int {
+	return b.records.Len() + b.trailers.Len() + 4
 }

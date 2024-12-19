@@ -2,11 +2,14 @@ package sstable
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/memtable"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/peterouob/gocloud/db/wal"
 	"github.com/stretchr/testify/assert"
+	"log"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -114,8 +117,27 @@ func TestFlushRecord(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = lsmt.FlushRecord(memtab, "test")
-	assert.NoError(t, err, "Flush record should not return an error")
+	assert.NoError(t, err, "Flush records should not return an error")
 	assert.Len(t, lsmt.tree[0], 1, "A new node should be created in level 0")
+}
+
+func TestGetKey(t *testing.T) {
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 1024, r, w, 3*time.Hour, im)
+	err := memtab.Put("key1", "value1")
+	assert.NoError(t, err)
+
+	err = lsmt.FlushRecord(memtab, "test")
+	assert.NoError(t, err, "Flush records should not return an error")
+
+	value := lsmt.Get("key1")
+	assert.Equal(t, value, "value1")
 }
 
 func TestRemoveNode(t *testing.T) {
@@ -139,4 +161,24 @@ func TestRemoveNode(t *testing.T) {
 	lsmt.removeNode([]*Node{node1})
 	assert.Len(t, lsmt.tree[1], 1, "Node should be removed")
 	assert.Equal(t, node2, lsmt.tree[1][0], "Remaining node should be the one not removed")
+}
+
+func TestGetSeparator(t *testing.T) {
+
+	a := []byte("hello")
+	b := []byte("hello n")
+
+	log.Println(string(GetSeparator(a, b)))
+}
+
+func TestFile(t *testing.T) {
+
+	reg := regexp.MustCompile(`^(?P<level>\d+)_(?P<seqNo>\d+)_(?P<extra>.*)\.sst$`)
+	fmt.Println(len(reg.SubexpNames()), reg.SubexpNames())
+
+	file := "1_5_222.sst"
+	match := reg.FindStringSubmatch(file)
+
+	fmt.Println(len(match), match)
+
 }

@@ -15,7 +15,7 @@ func TestBlockAppend(t *testing.T) {
 
 	block.Append(key1, value1)
 
-	assert.Equal(t, 1, block.n, "Block record count should increment")
+	assert.Equal(t, 1, block.n, "Block records count should increment")
 	assert.Equal(t, key1, block.prvKey, "Previous key should be updated")
 
 }

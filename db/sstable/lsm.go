@@ -41,6 +41,27 @@ func NewLSMTree[K any, V any](conf *config.Config) *LSMTree[K, V] {
 	return lsmt
 }
 
+func (t *LSMTree[K, V]) Get(key K) []V {
+
+	var vNil []V
+
+	for _, nodes := range t.tree {
+		for i := len(nodes) - 1; i >= 0; i-- {
+			log.Println("key:", key)
+			value, err := nodes[i].Get(formatKey(key))
+			log.Println("value:", value)
+			if value != nil && err == nil {
+				log.Println(value)
+				return vNil
+			} else if err != nil {
+				panic(fmt.Errorf("get value:%s from key error:%v", string(value), err))
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
 func (t *LSMTree[K, V]) FlushRecord(memtable *memtable.MemTable[K, V], extra string) error {
 	level := 0
 	seqNo := t.NextSeqNo(level)
@@ -67,7 +88,11 @@ func (t *LSMTree[K, V]) FlushRecord(memtable *memtable.MemTable[K, V], extra str
 	}
 	log.Printf("write in %s, count %d", file, count)
 
-	size, filter, index := w.Finish()
+	size, filter, index, err := w.Finish()
+	if err != nil {
+		return errors.New("error in finish : " + err.Error())
+	}
+	log.Println(size, filter, index)
 	node, err := NewNode(filter, index, level, seqNo, extra, size, t.conf, file)
 	if err != nil {
 		return errors.New("error in new Node after append ssWriter: " + err.Error())
@@ -209,7 +234,10 @@ func (t *LSMTree[K, V]) compaction(level int) error {
 		record = record.next.Fill(nodes, i)
 
 		if writer.Size() > maxNodeSize {
-			size, filter, index := writer.Finish()
+			size, filter, index, err := writer.Finish()
+			if err != nil {
+				return errors.New("error in finish : " + err.Error())
+			}
 			writer.Close()
 
 			node, err := NewNode(filter, index, level, seqNo, extra, size, t.conf, file)
@@ -227,7 +255,10 @@ func (t *LSMTree[K, V]) compaction(level int) error {
 		}
 	}
 
-	size, filter, index := writer.Finish()
+	size, filter, index, err := writer.Finish()
+	if err != nil {
+		return errors.New("error in compaction lsm log error: " + err.Error())
+	}
 	node, err := NewNode(filter, index, level, seqNo, extra, size, t.conf, file)
 	if err != nil {
 		return errors.New("error in create new node : " + err.Error())
@@ -322,3 +353,12 @@ func (t *LSMTree[K, V]) CheckCompaction() {
 		}
 	}()
 }
+
+//func RestoreLSM[K any,V any](conf *config.Config){
+//	lt := NewLSMTree[K,V](conf)
+//	callback := []func(string, fs.FileInfo) {
+//		func(path string, info fs.FileInfo) {
+//
+//		}
+//	}
+//}

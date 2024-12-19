@@ -3,8 +3,11 @@ package sstable
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/peterouob/gocloud/db/config"
+	"github.com/peterouob/gocloud/db/utils"
 	"io"
+	"log"
 	"sync"
 )
 
@@ -40,6 +43,7 @@ func NewNode(filter map[uint64][]byte, index []*Index, level, seqNo int, extra s
 	if err != nil {
 		return nil, errors.New("error in new ssReader : " + err.Error())
 	}
+
 	return &Node{
 		sr:       r,
 		filter:   filter,
@@ -60,7 +64,7 @@ func (n *Node) nextRecord() ([]byte, []byte) {
 			return nil, nil
 		}
 
-		data, err := n.sr.readBlock(int64(n.index[n.curBlock].PrevOffset), int64(n.index[n.curBlock].PrevSize))
+		data, err := n.sr.ReadBlock(n.index[n.curBlock].PrevOffset, n.index[n.curBlock].PrevSize)
 		if err != nil {
 			if err != io.EOF {
 				panic(errors.New("error in readBlock EOF : " + err.Error()))
@@ -68,7 +72,7 @@ func (n *Node) nextRecord() ([]byte, []byte) {
 			return nil, nil
 		}
 
-		record, _ := DecodeBlock(data)
+		record, _, _ := DecodeBlock(data)
 		n.curBuf = bytes.NewBuffer(record)
 		n.prevKey = make([]byte, 0)
 		n.curBlock++
@@ -81,11 +85,69 @@ func (n *Node) nextRecord() ([]byte, []byte) {
 	}
 
 	if err != io.EOF {
-		panic(errors.New("read record error : " + err.Error()))
+		panic(errors.New("read records error : " + err.Error()))
 		return nil, nil
 	}
 	n.curBuf = nil
 	return n.nextRecord()
+}
+
+func (n *Node) Get(key []byte) ([]byte, error) {
+	if bytes.Compare(key, n.startKey) < 0 || bytes.Compare(key, n.endKey) > 0 {
+		log.Printf("Key %v out of range: startKey %v, endKey %v", key, n.startKey, n.endKey)
+		return nil, nil
+	}
+
+	for _, index := range n.index[1:] {
+		f := n.filter[index.PrevOffset]
+		if !utils.Contains(f, key) {
+			continue
+		}
+		if bytes.Compare(key, index.Key) <= 0 {
+			data, err := n.sr.readBlock(int64(index.PrevOffset), int64(index.PrevSize))
+			if err != nil {
+				if err != io.EOF {
+					return nil, fmt.Errorf("%d stage %d node, read records error %v", n.Level, n.SeqNo, err)
+				}
+				return nil, errors.New("error in readBlock EOF : " + err.Error())
+			}
+			record, restartPoint, _ := DecodeBlock(data)
+			prevOffset := restartPoint[len(restartPoint)-1]
+			for i := len(restartPoint) - 2; i >= 0; i-- {
+				recordBuf := bytes.NewBuffer(record[restartPoint[i]:prevOffset])
+				rKey, value, err := ReadRecord(n.prevKey, recordBuf)
+				if err != nil {
+					if err != io.EOF {
+						return nil, fmt.Errorf("%d stage %d node, read records error %v", n.Level, n.SeqNo, err)
+					}
+					return nil, errors.New("error in readBlock EOF : " + err.Error())
+				}
+				cmp := bytes.Compare(key, recordBuf.Bytes())
+				if cmp < 0 {
+					prevOffset = restartPoint[i]
+					continue
+				} else if cmp == 0 {
+					return value, nil
+				} else {
+					prevKey := rKey
+					for {
+						rKey, value, err = ReadRecord(prevKey, recordBuf)
+						if err != nil {
+							if err != io.EOF {
+								return nil, fmt.Errorf("%d stage %d node, read records error %v", n.Level, n.SeqNo, err)
+							}
+							return nil, errors.New("error in readBlock EOF : " + err.Error())
+						}
+						if bytes.Equal(key, rKey) {
+							return value, nil
+						}
+						prevKey = rKey
+					}
+				}
+			}
+		}
+	}
+	return nil, nil
 }
 
 func (n *Node) destroy() {

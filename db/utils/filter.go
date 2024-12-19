@@ -31,6 +31,7 @@ func NewBloomFilter(bitesPerKey int) *BloomFilter {
 	}
 }
 
+// Add level db use this Hash function
 func (b *BloomFilter) Add(key []byte) {
 	b.hashKeys = append(b.hashKeys, Hash(key, magicSeed))
 }
@@ -57,26 +58,51 @@ func (b *BloomFilter) Hash() []byte {
 		k = 30
 	}
 
-	nBytes := uint32(n * b.bytesKey)
-	if nBytes < 64 {
-		nBytes = 64
+	nBit := uint32(n * b.bytesKey)
+	if nBit < 64 {
+		nBit = 64
 	}
 
-	nBits := (nBytes + 7) / 8
-	nBytes = nBits * 8
+	nByte := (nBit + 7) / 8
+	nBit = nByte * 8
 
-	dest := make([]byte, nBits+1)
-	dest[nBits] = k
+	dest := make([]byte, nByte+1)
+	dest[nByte] = k
 
 	for _, hk := range b.hashKeys {
 		delta := (hk >> 17) | (hk << 15)
 		for i := uint8(0); i < k; i++ {
-			byteops := hk % nBytes
+			byteops := hk % nBit
 			dest[byteops/8] |= 1 << (byteops % 8)
 			hk += delta
 		}
 	}
 	return dest
+}
+
+func Contains(filter, key []byte) bool {
+
+	nBytes := len(filter) - 1
+	if nBytes < 1 {
+		return false
+	}
+	nBits := uint32(nBytes * 8)
+
+	k := filter[nBytes]
+	if k > 30 {
+		return true
+	}
+
+	kh := Hash(key, 0xbc9f1d34)
+	delta := (kh >> 17) | (kh << 15) // Rotate right 17 bits
+	for j := uint8(0); j < k; j++ {
+		bitpos := kh % nBits
+		if (uint32(filter[bitpos/8]) & (1 << (bitpos % 8))) == 0 {
+			return false
+		}
+		kh += delta
+	}
+	return true
 }
 
 func (b *BloomFilter) Reset() {

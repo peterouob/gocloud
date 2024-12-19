@@ -29,3 +29,18 @@ func formatKeyValue[K any, V any](key K, value V) ([]byte, []byte) {
 	}
 	return bKey, bValue
 }
+
+func formatKey[K any](key K) []byte {
+	var bKey []byte
+
+	switch v := any(key).(type) {
+	case string:
+		bKey = []byte(v)
+	case []byte:
+		bKey = v
+	default:
+		panic("Unsupported key type")
+	}
+
+	return bKey
+}

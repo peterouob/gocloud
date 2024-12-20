@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/peterouob/gocloud/db"
-	"log"
+	"github.com/gin-gonic/gin"
+	"github.com/peterouob/gocloud/router"
 )
 
 func main() {
-	log.Println("start db ...")
-	db.Start()
+	r := gin.Default()
+	router.SetupRouter(r)
+	r.Run(":8083")
 }

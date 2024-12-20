@@ -1,13 +1,20 @@
 package memtable
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/peterouob/gocloud/db/config"
+	"github.com/peterouob/gocloud/db/memtable/kv"
 	"log"
+	"os"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/peterouob/gocloud/db/memtable/kv"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/peterouob/gocloud/db/wal"
 )
@@ -31,10 +38,19 @@ type MemTable[K any, V any] struct {
 	flushPeriod time.Duration
 	ticker      *time.Ticker
 	IMemTable   *IMemTable[K, V]
+	f           *os.File
+	conf        *config.Config
 }
 
 func NewMemTable[K any, V any](c utils.Comparator[K], maxSize int, r *wal.Reader,
-	w *wal.Writer, t time.Duration, iMemTable *IMemTable[K, V]) *MemTable[K, V] {
+	w *wal.Writer, t time.Duration, iMemTable *IMemTable[K, V], fileName string, conf *config.Config) *MemTable[K, V] {
+	base := strings.TrimSuffix(fileName, path.Ext(fileName))
+
+	txtPath := path.Join(conf.Dir, base+".txt")
+	txtFile, err := os.OpenFile(txtPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return nil
+	}
 	m := &MemTable[K, V]{
 		MemTree:     NewTree[K, V](c),
 		WalReader:   r,
@@ -45,6 +61,8 @@ func NewMemTable[K any, V any](c utils.Comparator[K], maxSize int, r *wal.Reader
 		ticker:      time.NewTicker(t),
 		stateChan:   sync.NewCond(&sync.Mutex{}),
 		IMemTable:   iMemTable,
+		f:           txtFile,
+		conf:        conf,
 	}
 	go m.listenState()
 	return m
@@ -68,14 +86,24 @@ func (m *MemTable[K, V]) listenState() {
 	}
 }
 
-func (m *MemTable[K, V]) Put(key K, value V) error {
+func (m *MemTable[K, V]) Put(k K, v V) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.state == readOnly {
-		log.Println("this is read only table")
+		log.Println("This is read only table")
 		m.Reset()
 		return errors.New("memtable is read-only, flushed")
+	}
+
+	key, value := utils.FormatKeyValue(k, v)
+
+	if _, err := fmt.Fprintf(m.f, "%s:%s\n", key, value); err != nil {
+		return fmt.Errorf("error in append to text file: %v", err)
+	}
+
+	if err := m.f.Sync(); err != nil {
+		return fmt.Errorf("error syncing file: %v", err)
 	}
 
 	data := kv.NewKV(key, value)
@@ -86,6 +114,9 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 
 	w := m.WalWriter.Next()
 	size, err := w.Write(dataBytes)
+	if err != nil {
+		return fmt.Errorf("error in write data: %v", err)
+	}
 
 	m.curSize += size
 	if m.curSize > m.maxSize {
@@ -96,15 +127,34 @@ func (m *MemTable[K, V]) Put(key K, value V) error {
 		m.WalWriter.Flush()
 	}
 
-	if err != nil {
-		return errors.New("error in write data :" + err.Error())
+	m.MemTree.Insert(k, v)
+	if err := m.write(key, value); err != nil {
+		return fmt.Errorf("error in write data: %v", err)
 	}
 
-	if m.curSize > 1024 {
-		m.MemTree.Insert(key, value)
+	return nil
+}
+
+func (m *MemTable[K, V]) write(key []byte, value []byte) error {
+	buf := new(bytes.Buffer)
+
+	log.Printf("Writing key-value pair: %s:%s", string(key), string(value))
+
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(key))); err != nil {
+		return fmt.Errorf("error writing key length: %v", err)
 	}
 
-	m.MemTree.Insert(key, value)
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(value))); err != nil {
+		return fmt.Errorf("error writing value length: %v", err)
+	}
+
+	if _, err := buf.Write(key); err != nil {
+		return fmt.Errorf("error writing key to buffer: %v", err)
+	}
+
+	if _, err := buf.Write(value); err != nil {
+		return fmt.Errorf("error writing value to buffer: %v", err)
+	}
 
 	return nil
 }
@@ -175,26 +225,3 @@ func (m *MemTable[K, V]) Reset() {
 	m.IMemTable.mu.Unlock()
 
 }
-
-//func (m *MemTable[K, V]) Restore(file string) (*Tree[K, V], error) {
-//	fd, err := os.OpenFile(file, os.O_RDONLY, 0644)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to create WAL file: %v", err)
-//	}
-//	node := NewTree[K, V](m.MemTree.comparator)
-//	r := wal.NewReader(fd)
-//	for {
-//		k, v, err := r.WalNext()
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		if len(k) == 0 {
-//			break
-//		}
-//
-//		node.Insert(any(k), any(v))
-//	}
-//
-//	return node, nil
-//}

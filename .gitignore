@@ -14,3 +14,8 @@ gen
 */*/*.sst
 */*.sst
 */*/*/*.sst
+*.txt
+*/*/*.txt
+*/*.txt
+*/*/*/*.txt
+*.env

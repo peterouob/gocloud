@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mdb
+  labels:
+    app: mdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mdb
+  template:
+    metadata:
+      labels:
+        app: mdb
+    spec:
+      containers:
+        - name: mdb
+          image: peter123ouob/mdb:v1.3
+          ports:
+            - containerPort: 8080

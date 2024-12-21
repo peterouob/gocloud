@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: peter123ouob/mdb
   pullPolicy: IfNotPresent
-  tag: "10008891570"
+  tag: "12445082096"
 
 ingress:
   enabled: false

@@ -77,6 +77,6 @@ jobs:
         run: |
           git config --global user.email "hellolinpeter@gmail.com"
           git config --global user.name "peterouob"
-          git add helm/mdb/values.yaml
+          git add helm/mdb-chart/values.yaml
           git commit -m "Update tag in Helm chart"
           git push

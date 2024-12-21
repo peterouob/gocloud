@@ -72,7 +72,7 @@ jobs:
           token: ${{ secrets.TOKEN }}
       - name: Update tag in Helm chart
         run: |
-          sed -i 's/tag: .*/tag: "${{ github.run_id }}"/' helm/mdb/values.yaml
+          sed -i 's/tag: .*/tag: "${{ github.run_id }}"/' helm/mdb-chart/values.yaml
       - name: Commit and push changes
         run: |
           git config --global user.email "hellolinpeter@gmail.com"

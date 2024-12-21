@@ -18,23 +18,18 @@ type S3File struct {
 	Client *s3.Client
 }
 
-const (
-	awsEndpoint = "http://localhost:4566"
-	awsRegion   = "us-east-1"
-	bucket      = "s3-demo-bucket"
+var (
+	awsRegion = "us-east-1"
+	bucket    = "s3-mdb-bucket"
 )
 
 func NewClient(ctx context.Context) *s3.Client {
-
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(awsRegion))
 	if err != nil {
 		panic(err)
 	}
 
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(awsEndpoint)
-		o.UsePathStyle = true
-	})
+	client := s3.NewFromConfig(cfg)
 
 	return client
 }

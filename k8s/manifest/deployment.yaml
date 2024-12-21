@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
         - name: mdb
-          image: peter123ouob/mdb:v1.3
+          image: peter123ouob/mdb:v1.5
           ports:
             - containerPort: 8080

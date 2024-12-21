@@ -32,3 +32,27 @@ ssTable -> write file -> LSM Tree
 ```
 Ingress control -> LB(DNS) -> Export
 ```
+
+## 使用工具
+
+### 生產環境
+- deploy: k8s cluster (on ec2)
+- load balance: nginx
+- build: docker
+- ci: git action
+- cd: argo cd
+- storage: aws s3 bucket
+
+### 本地測試
+- api test: postman
+- aws: localstack
+
+### program
+- language: golang,yaml
+- 程式目地: 使用這創建本地db(基於lsm tree完成),對db進行操作後可以push到雲端,使用者也可以查看雲端上的db
+- why lsm: 考慮到db有可能有大量的內容,使用一般io讀寫對內存造成較大負擔,使用lsm tree的思想,先預寫log到wal中,再寫入到memtable如果memtable中的內容大小超過的話建立只讀表並且重新生成memtable
+
+### 未來發展
+- 實現類似leveldb中的version迭代
+- 完善lsm tree的壓縮功能
+- 對資料表有更大的操作或存取認證

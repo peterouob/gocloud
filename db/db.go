@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/memtable"
+	"github.com/peterouob/gocloud/db/sstable"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/peterouob/gocloud/db/wal"
 	"time"
 )
 
 type DB struct {
+	LsmTree  *sstable.LSMTree[string, string]
 	FileName string `json:"file_name"`
 	Key      string `json:"key"`
 	Value    string `json:"value"`

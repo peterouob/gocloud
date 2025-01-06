@@ -523,7 +523,6 @@ func SharedPrefixLen(a, b []byte) int {
 	return i
 }
 
-// TODO:FIX !!!
 func (w *SsWriter) verifyFooter() error {
 	if _, err := w.fd.Seek(-int64(w.conf.SstFooterSize), io.SeekEnd); err != nil {
 		return err

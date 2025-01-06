@@ -26,6 +26,13 @@ const (
 	readOnly
 )
 
+type MemTableInterface[K any, V any] interface {
+	Put(k K, v V) error
+	Get(k K) (V, error)
+	DeepCopy() *MemTable[K, V]
+	Reset()
+}
+
 type MemTable[K any, V any] struct {
 	MemTree     *Tree[K, V]
 	WalReader   *wal.Reader
@@ -41,6 +48,8 @@ type MemTable[K any, V any] struct {
 	f           *os.File
 	conf        *config.Config
 }
+
+var _ MemTableInterface[any, any] = (*MemTable[any, any])(nil)
 
 func NewMemTable[K any, V any](c utils.Comparator[K], maxSize int, r *wal.Reader,
 	w *wal.Writer, t time.Duration, iMemTable *IMemTable[K, V], fileName string, conf *config.Config) *MemTable[K, V] {
@@ -97,15 +106,6 @@ func (m *MemTable[K, V]) Put(k K, v V) error {
 	}
 
 	key, value := utils.FormatKeyValue(k, v)
-
-	if _, err := fmt.Fprintf(m.f, "%s:%s\n", key, value); err != nil {
-		return fmt.Errorf("error in append to text file: %v", err)
-	}
-
-	if err := m.f.Sync(); err != nil {
-		return fmt.Errorf("error syncing file: %v", err)
-	}
-
 	data := kv.NewKV(key, value)
 	dataBytes, err := json.Marshal(data)
 	if err != nil {

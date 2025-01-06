@@ -11,13 +11,8 @@ import (
 	"sync"
 )
 
-type RawNodeData struct {
-	Level  int
-	SeqNo  int
-	Offset int64
-	Data   []byte
-	Done   bool
-	Err    error
+type NodeInterface interface {
+	Get([]byte) ([]byte, error)
 }
 
 type Node struct {
@@ -37,6 +32,8 @@ type Node struct {
 	curBuf   *bytes.Buffer
 	prevKey  []byte
 }
+
+var _ NodeInterface = (*Node)(nil)
 
 func NewNode(filter map[uint64][]byte, index []*Index, level, seqNo int, extra string, fileSize int64, conf *config.Config, file string) (*Node, error) {
 	r, err := NewSStReader(file, conf)
@@ -98,7 +95,6 @@ func (n *Node) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	//TODO:key cannot get value
 	log.Println("Get from record :", string(key))
 	for _, index := range n.index[1:] {
 		f := n.filter[index.PrevOffset]

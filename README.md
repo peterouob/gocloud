@@ -1,5 +1,8 @@
 # Sstable 測試後有問題,目前猜測是format以及block未成功寫入導致offset出問題
-
+- 解決:
+  - type 問題新增format
+  - Decode block問題新增判斷block 起始位置為1的情況
+  
 - [x] LSM Tree similar sql and store the data on the file and push to S3
   - [x] MemTable (Red black tree)
   ```text
@@ -9,6 +12,7 @@
   - [x] Open
   - [x] Wal
     - [x] Write the log 
+  - [x] SStable
 
 ```text
 open->lsm->walManager-> write log if log count > maxCount -> memtable

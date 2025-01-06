@@ -12,6 +12,12 @@ import (
 	"sync"
 )
 
+type LSMTreeInterface[K any, V any] interface {
+	Get(K) []byte
+	FlushRecord(*memtable.MemTable[K, V], string) error
+	PickCompactionNode(int) []*Node
+	NextSeqNo(int) int
+}
 type LSMTree[K any, V any] struct {
 	mu          sync.Mutex
 	conf        *config.Config

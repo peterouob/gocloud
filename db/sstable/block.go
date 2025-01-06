@@ -10,6 +10,13 @@ import (
 	"io"
 )
 
+type BlockInterface interface {
+	Append([]byte, []byte)
+	FlushBlockTo(io.Writer) (uint64, error)
+	Len() int
+	Size() int
+}
+
 type Block struct {
 	conf        *config.Config
 	header      [30]byte
@@ -19,6 +26,8 @@ type Block struct {
 	prvKey      []byte
 	compression []byte //壓縮
 }
+
+var _ BlockInterface = (*Block)(nil)
 
 func NewBlock(conf *config.Config) *Block {
 	return &Block{

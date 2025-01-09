@@ -13,9 +13,9 @@ type Config struct {
 func NewConfig(dir string) *Config {
 	return &Config{
 		Dir:                 dir,
-		MaxLevel:            7,
-		SstSize:             4096 * 1024,
-		SstDataBlockSize:    16 * 1024,
+		MaxLevel:            10,
+		SstSize:             16 * 1024 * 1024,
+		SstDataBlockSize:    16 * 1024 * 1024,
 		SstFooterSize:       40,
 		SstBlockTrailerSize: 4,
 		SstRestartInterval:  16,

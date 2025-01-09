@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"log"
 )
 
 func FormatKeyValue2Byte[K any, V any](key K, value V) ([]byte, []byte) {
@@ -71,7 +70,6 @@ func FormatKeyV(k interface{}) []byte {
 	default:
 		panic("Unsupported key type")
 	}
-	log.Println("keyBytes:", keyBytes)
 	return keyBytes
 }
 

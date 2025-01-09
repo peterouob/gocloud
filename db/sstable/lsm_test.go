@@ -2,11 +2,15 @@ package sstable
 
 import (
 	"bytes"
+	"fmt"
+	bptree2 "github.com/peterouob/gocloud/bptree"
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/memtable"
 	"github.com/peterouob/gocloud/db/utils"
 	"github.com/peterouob/gocloud/db/wal"
 	"github.com/stretchr/testify/assert"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -117,6 +121,146 @@ func TestFlushRecord(t *testing.T) {
 	assert.Len(t, lsmt.tree[0], 1, "A new node should be created in level 0")
 }
 
+func TestFlushMutilRecord(t *testing.T) {
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 1024, r, w, 3*time.Hour, im, "1", config.NewConfig("./"))
+	for i := 0; i < 100; i++ {
+		err := memtab.Put(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
+		assert.NoError(t, err)
+		err = lsmt.FlushRecord(memtab, "test")
+		assert.NoError(t, err, "Flush records should not return an error")
+	}
+}
+
+func TestLargeScaleWritePerformance(t *testing.T) {
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 10240, r, w, 3*time.Hour, im, "1", config.NewConfig(dir))
+
+	const recordCount = 1000
+
+	startLSM := time.Now()
+	for i := 0; i < recordCount; i++ {
+		err := memtab.Put(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
+		assert.NoError(t, err)
+
+		if i%100 == 0 && i != 0 {
+			err = lsmt.FlushRecord(memtab, "test")
+			assert.NoError(t, err, "Flush records should not return an error")
+		}
+	}
+	lsmDuration := time.Since(startLSM)
+	t.Logf("LSM Tree Write Duration: %v", lsmDuration)
+
+	startFile := time.Now()
+	file, err := os.Create("test_file.txt")
+	assert.NoError(t, err, "File creation should not return an error")
+	defer file.Close()
+
+	for i := 0; i < recordCount; i++ {
+		_, err := file.WriteString(fmt.Sprintf("key%d: value%d\n", i, i))
+		assert.NoError(t, err, "File write should not return an error")
+	}
+	fileDuration := time.Since(startFile)
+	t.Logf("Normal File Write Duration: %v", fileDuration)
+
+	t.Logf("Performance Comparison: LSM = %v, File = %v", lsmDuration, fileDuration)
+}
+
+func TestFlushComparNormal(t *testing.T) {
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 1024, r, w, 3*time.Hour, im, "1", config.NewConfig(dir))
+
+	startLSM := time.Now()
+	for i := 0; i < 100; i++ {
+		err := memtab.Put(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
+		assert.NoError(t, err)
+
+		err = lsmt.FlushRecord(memtab, "test")
+		assert.NoError(t, err, "Flush records should not return an error")
+	}
+	lsmDuration := time.Since(startLSM)
+	t.Logf("LSM Tree Flush duration: %v", lsmDuration)
+
+	startFile := time.Now()
+	file, err := os.Create("test_file.txt")
+	assert.NoError(t, err, "File creation should not return an error")
+	defer file.Close()
+
+	for i := 0; i < 100; i++ {
+		_, err := file.WriteString(fmt.Sprintf("key%d: value%d\n", i, i))
+		assert.NoError(t, err, "File write should not return an error")
+	}
+	fileDuration := time.Since(startFile)
+	t.Logf("Normal file write duration: %v", fileDuration)
+
+	t.Logf("LSM Tree vs Normal File Write: LSM = %v, File = %v", lsmDuration, fileDuration)
+}
+func TestLargeScaleWritePerformanceWithMemory(t *testing.T) {
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 10240, r, w, 3*time.Hour, im, "1", config.NewConfig(dir))
+
+	const recordCount = 1000
+
+	startMemLSM := getMemoryUsage()
+	startLSM := time.Now()
+	for i := 0; i < recordCount; i++ {
+		err := memtab.Put(fmt.Sprintf("key%d", 1), fmt.Sprintf("value%d", 1))
+		assert.NoError(t, err)
+
+		if i%100 == 0 && i != 0 {
+			err = lsmt.FlushRecord(memtab, "test")
+			assert.NoError(t, err, "Flush records should not return an error")
+		}
+	}
+	lsmDuration := time.Since(startLSM)
+	endMemLSM := getMemoryUsage()
+	t.Logf("LSM Tree Write Duration: %v", lsmDuration)
+	t.Logf("LSM Tree Memory Usage: %d KB", endMemLSM-startMemLSM)
+
+	startMemFile := getMemoryUsage()
+	startFile := time.Now()
+	file, err := os.Create("test_file.txt")
+	assert.NoError(t, err, "File creation should not return an error")
+	defer file.Close()
+
+	for i := 0; i < recordCount; i++ {
+		_, err := file.WriteString(fmt.Sprintf("key%d: value%d\n", 1, 1))
+		assert.NoError(t, err, "File write should not return an error")
+	}
+	fileDuration := time.Since(startFile)
+	endMemFile := getMemoryUsage()
+	t.Logf("Normal File Write Duration: %v", fileDuration)
+	t.Logf("Normal File Memory Usage: %d KB", endMemFile-startMemFile)
+
+	t.Logf("Performance Comparison: LSM = %v, File = %v", lsmDuration, fileDuration)
+	t.Logf("Memory Usage Comparison: LSM = %d KB, File = %d KB", endMemLSM-startMemLSM, endMemFile-startMemFile)
+}
+
+func getMemoryUsage() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc / 1024
+}
 func TestGetKey(t *testing.T) {
 	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
 
@@ -126,23 +270,27 @@ func TestGetKey(t *testing.T) {
 	r := wal.NewReader(buf)
 	im := memtable.NewIMemTable[string, string]()
 	memtab := memtable.NewMemTable[string, string](compare, 1024, r, w, 3*time.Hour, im, "1", config.NewConfig("./"))
-	err := memtab.Put("key1", "value1")
-	assert.NoError(t, err)
 
-	err = lsmt.FlushRecord(memtab, "test")
-	assert.NoError(t, err, "Flush records should not return an error")
+	for i := 0; i < 1000; i++ {
+		err := memtab.Put("key1", "value1")
+		assert.NoError(t, err)
 
-	err = memtab.Put("key2", "value2")
-	assert.NoError(t, err)
+		err = lsmt.FlushRecord(memtab, "test")
+		assert.NoError(t, err, "Flush records should not return an error")
 
-	err = lsmt.FlushRecord(memtab, "test2")
-	assert.NoError(t, err, "Flush records should not return an error")
+		err = memtab.Put("key2", "value2")
+		assert.NoError(t, err)
 
-	err = memtab.Put("key3", "value3")
-	assert.NoError(t, err)
+		err = lsmt.FlushRecord(memtab, "test2")
+		assert.NoError(t, err, "Flush records should not return an error")
 
-	err = lsmt.FlushRecord(memtab, "test3")
-	assert.NoError(t, err, "Flush records should not return an error")
+		err = memtab.Put("key3", "value3")
+		assert.NoError(t, err)
+
+		err = lsmt.FlushRecord(memtab, "test3")
+		assert.NoError(t, err, "Flush records should not return an error")
+
+	}
 
 	value := lsmt.Get("key1")
 	assert.Equal(t, string(value), "value1")
@@ -169,4 +317,58 @@ func TestRemoveNode(t *testing.T) {
 	lsmt.removeNode([]*Node{node1})
 	assert.Len(t, lsmt.tree[1], 1, "Node should be removed")
 	assert.Equal(t, node2, lsmt.tree[1][0], "Remaining node should be the one not removed")
+}
+
+func TestCompareWithBPTree(t *testing.T) {
+
+	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
+	compare := &utils.OrderComparator[string]{}
+	buf := new(bytes.Buffer)
+	w := wal.NewWriter(buf)
+	r := wal.NewReader(buf)
+	im := memtable.NewIMemTable[string, string]()
+	memtab := memtable.NewMemTable[string, string](compare, 10240, r, w, 3*time.Hour, im, "1", config.NewConfig(dir))
+
+	const recordCount = 3000
+
+	for i := 0; i < recordCount; i++ {
+		err := memtab.Put(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
+		assert.NoError(t, err)
+	}
+	startMemLSM := getMemoryUsage()
+	startLSM := time.Now()
+	lsmt.FlushRecord(memtab, "test")
+	lsmDuration := time.Since(startLSM)
+	endMemLSM := getMemoryUsage()
+	t.Logf("LSM Tree Write Duration: %v", lsmDuration)
+	t.Logf("LSM Tree Write Memory Usage: %d KB", endMemLSM-startMemLSM)
+
+	readMemLSM := getMemoryUsage()
+	startReadLSM := time.Now()
+	lsmt.Get(fmt.Sprintf("key%d", 777))
+	endReadMemLSM := getMemoryUsage()
+	endReadLSM := time.Since(startReadLSM)
+	t.Logf("LSM Tree Read Duration: %v", endReadLSM)
+	t.Logf("LSM Tree Read Memory Usage: %d KB", endReadMemLSM-readMemLSM)
+
+	startMemBP := getMemoryUsage()
+	startBP := time.Now()
+	bptree := bptree2.NewBPTree[string](10)
+	for i := 0; i < recordCount; i++ {
+		bptree.Insert(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
+	}
+
+	BPDuration := time.Since(startBP)
+	endMemBP := getMemoryUsage()
+	t.Logf("BP Tree Write Duration: %v", BPDuration)
+	t.Logf("BP Tree Write Memory Usage: %d KB", endMemBP-startMemBP)
+
+	readMemBP := getMemoryUsage()
+	startReadBP := time.Now()
+	bptree.Get(fmt.Sprintf("key%d", 777))
+	endReadMemBP := getMemoryUsage()
+	endReadBP := time.Since(startReadBP)
+	t.Logf("BPTree Tree Read Duration: %v", endReadBP)
+	t.Logf("BPTree Tree Read Memory Usage: %d KB", endReadMemBP-readMemBP)
+
 }

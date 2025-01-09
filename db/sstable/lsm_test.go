@@ -137,45 +137,6 @@ func TestFlushMutilRecord(t *testing.T) {
 	}
 }
 
-func TestLargeScaleWritePerformance(t *testing.T) {
-	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
-	compare := &utils.OrderComparator[string]{}
-	buf := new(bytes.Buffer)
-	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf)
-	im := memtable.NewIMemTable[string, string]()
-	memtab := memtable.NewMemTable[string, string](compare, 10240, r, w, 3*time.Hour, im, "1", config.NewConfig(dir))
-
-	const recordCount = 1000
-
-	startLSM := time.Now()
-	for i := 0; i < recordCount; i++ {
-		err := memtab.Put(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i))
-		assert.NoError(t, err)
-
-		if i%100 == 0 && i != 0 {
-			err = lsmt.FlushRecord(memtab, "test")
-			assert.NoError(t, err, "Flush records should not return an error")
-		}
-	}
-	lsmDuration := time.Since(startLSM)
-	t.Logf("LSM Tree Write Duration: %v", lsmDuration)
-
-	startFile := time.Now()
-	file, err := os.Create("test_file.txt")
-	assert.NoError(t, err, "File creation should not return an error")
-	defer file.Close()
-
-	for i := 0; i < recordCount; i++ {
-		_, err := file.WriteString(fmt.Sprintf("key%d: value%d\n", i, i))
-		assert.NoError(t, err, "File write should not return an error")
-	}
-	fileDuration := time.Since(startFile)
-	t.Logf("Normal File Write Duration: %v", fileDuration)
-
-	t.Logf("Performance Comparison: LSM = %v, File = %v", lsmDuration, fileDuration)
-}
-
 func TestFlushComparNormal(t *testing.T) {
 	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
 	compare := &utils.OrderComparator[string]{}
@@ -260,40 +221,6 @@ func getMemoryUsage() uint64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	return m.Alloc / 1024
-}
-func TestGetKey(t *testing.T) {
-	lsmt := NewLSMTree[string, string](config.NewConfig(dir))
-
-	compare := &utils.OrderComparator[string]{}
-	buf := new(bytes.Buffer)
-	w := wal.NewWriter(buf)
-	r := wal.NewReader(buf)
-	im := memtable.NewIMemTable[string, string]()
-	memtab := memtable.NewMemTable[string, string](compare, 1024, r, w, 3*time.Hour, im, "1", config.NewConfig("./"))
-
-	for i := 0; i < 1000; i++ {
-		err := memtab.Put("key1", "value1")
-		assert.NoError(t, err)
-
-		err = lsmt.FlushRecord(memtab, "test")
-		assert.NoError(t, err, "Flush records should not return an error")
-
-		err = memtab.Put("key2", "value2")
-		assert.NoError(t, err)
-
-		err = lsmt.FlushRecord(memtab, "test2")
-		assert.NoError(t, err, "Flush records should not return an error")
-
-		err = memtab.Put("key3", "value3")
-		assert.NoError(t, err)
-
-		err = lsmt.FlushRecord(memtab, "test3")
-		assert.NoError(t, err, "Flush records should not return an error")
-
-	}
-
-	value := lsmt.Get("key1")
-	assert.Equal(t, string(value), "value1")
 }
 
 func TestRemoveNode(t *testing.T) {

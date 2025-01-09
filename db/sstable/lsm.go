@@ -7,7 +7,6 @@ import (
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/memtable"
 	"github.com/peterouob/gocloud/db/utils"
-	"log"
 	"math"
 	"sync"
 )
@@ -26,6 +25,8 @@ type LSMTree[K any, V any] struct {
 	compactChan chan int
 	stopChan    chan struct{}
 }
+
+var _ LSMTreeInterface[any, any] = (*LSMTree[any, any])(nil)
 
 func NewLSMTree[K any, V any](conf *config.Config) *LSMTree[K, V] {
 	compactionChan := make(chan int, 100)
@@ -88,13 +89,10 @@ func (t *LSMTree[K, V]) FlushRecord(memtable *memtable.MemTable[K, V], extra str
 		keys = append(keys, node.Key)
 		count++
 	}
-	log.Printf("write in %s, count %d", file, count)
-
 	size, filter, index, err := w.Finish()
 	if err != nil {
 		return errors.New("error in finish : " + err.Error())
 	}
-	log.Println(size, filter, index)
 	node, err := NewNode(filter, index, level, seqNo, extra, size, t.conf, file)
 	if err != nil {
 		return errors.New("error in new Node after append ssWriter: " + err.Error())
@@ -126,8 +124,12 @@ func (t *LSMTree[K, V]) insertNode(node *Node) {
 				return
 			}
 		}
-		t.tree[level] = append(t.tree[level][:idx+1], t.tree[level][idx:]...)
-		t.tree[level][idx+1] = node
+		if idx == -1 {
+			t.tree[level] = append([]*Node{node}, t.tree[level]...)
+		} else {
+			t.tree[level] = append(t.tree[level][:idx+1], append([]*Node{node}, t.tree[level][idx:]...)...)
+			t.tree[level][idx+1] = node
+		}
 	} else {
 		for i, n := range t.tree[level] {
 			cmp := bytes.Compare(n.startKey, node.startKey)
@@ -225,7 +227,6 @@ func (t *LSMTree[K, V]) compaction(level int) error {
 		files += utils.FormatName(node.Level, node.SeqNo, node.Extra)
 		record = record.Fill(nodes, i)
 	}
-	log.Printf("compaction : %v", files)
 
 	writeCount := 0
 
@@ -277,7 +278,6 @@ func (t *LSMTree[K, V]) removeNode(nodes []*Node) {
 	defer t.mu.Unlock()
 
 	for _, node := range nodes {
-		log.Printf("remove %d_%d_%s.sst", node.Level, node.SeqNo, node.Extra)
 		for i, tn := range t.tree[node.Level] {
 			if tn.SeqNo == node.SeqNo {
 				t.tree[node.Level] = append(t.tree[node.Level][:i], t.tree[node.Level][i+1:]...)
@@ -302,7 +302,6 @@ func (t *LSMTree[K, V]) CheckCompaction() {
 			select {
 			case <-level0:
 				if len(t.tree[0]) > 4 {
-					log.Printf("level0 compaction ..., num: %d", len(t.tree[0]))
 					if err := t.compaction(0); err != nil {
 						panic(errors.New(err.Error()))
 					}

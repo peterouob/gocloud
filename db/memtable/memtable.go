@@ -83,7 +83,7 @@ func (m *MemTable[K, V]) listenState() {
 		select {
 		case <-m.ticker.C:
 			if m.state != readOnly {
-				log.Println("hello !")
+
 				m.state = readOnly
 				m.stateChan.Broadcast()
 				m.Reset()
@@ -137,8 +137,6 @@ func (m *MemTable[K, V]) Put(k K, v V) error {
 
 func (m *MemTable[K, V]) write(key []byte, value []byte) error {
 	buf := new(bytes.Buffer)
-
-	log.Printf("Writing key-value pair: %s:%s", string(key), string(value))
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(key))); err != nil {
 		return fmt.Errorf("error writing key length: %v", err)

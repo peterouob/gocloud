@@ -110,8 +110,6 @@ func (r *SStReader) ReadBlock(offset, size uint64) ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	log.Printf("Reading block at offset %d, size %d", offset, size)
-
 	if _, err := r.fd.Seek(int64(offset), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("seek error: %v", err)
 	}
@@ -137,9 +135,6 @@ func (r *SStReader) ReadBlock(offset, size uint64) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decompress error: %v", err)
 	}
-
-	log.Printf("Successfully read block: %d bytes compressed, %d bytes decompressed",
-		len(compressed), len(decompressed))
 
 	return decompressed, nil
 }
@@ -175,11 +170,9 @@ func (r *SStReader) read(size int64) (b []byte, err error) {
 
 func DecodeBlock(block []byte) ([]byte, []int, error) {
 	n := len(block)
-	log.Println("block", string(block[:n-4]))
 	nRestartPoint := int(binary.LittleEndian.Uint32(block[n-4:]))
 	oRestartPoint := n - (nRestartPoint * 4) - 4
 	restartPoint := make([]int, nRestartPoint)
-	log.Println("nRestartPoint:", nRestartPoint)
 	for i := 0; i < nRestartPoint; i++ {
 		restartPoint[i] = int(binary.LittleEndian.Uint32(block[oRestartPoint+i*4:]))
 	}
@@ -322,7 +315,7 @@ func (r *SStReader) Destroy() {
 		panic(errors.New("error in close fd : " + err.Error()))
 	}
 	if err := os.Remove(r.fd.Name()); err != nil {
-		panic(errors.New("error in remove file : " + err.Error()))
+		panic(fmt.Errorf("error in remove file:%s error: %s", r.fd.Name(), err.Error()))
 	}
 }
 
@@ -471,12 +464,6 @@ func (w *SsWriter) Finish() (int64, map[uint64][]byte, []*Index, error) {
 
 	totalSize := indexOffset + int64(w.indexBuf.Len()) + int64(w.conf.SstFooterSize)
 
-	log.Printf("Final file layout:")
-	log.Printf("Data blocks: 0 to %d", dataSize)
-	log.Printf("Filter blocks: %d to %d", filterOffset, filterOffset+int64(w.fileBuf.Len()))
-	log.Printf("Index blocks: %d to %d", indexOffset, indexOffset+int64(w.indexBuf.Len()))
-	log.Printf("Footer: %d to %d", totalSize-int64(w.conf.SstFooterSize), totalSize)
-
 	if err := w.verifyFooter(); err != nil {
 		return 0, nil, nil, errors.New("footer verification failed" + err.Error())
 	}
@@ -531,15 +518,14 @@ func (w *SsWriter) verifyFooter() error {
 	if _, err := io.ReadFull(bufio.NewReader(w.fd), footerData); err != nil {
 		return errors.New("error in footer data : " + err.Error())
 	}
-
-	buf := bytes.NewBuffer(footerData)
-	filterOffset, _ := binary.ReadUvarint(buf)
-	filterSize, _ := binary.ReadUvarint(buf)
-	indexOffset, _ := binary.ReadUvarint(buf)
-	indexSize, _ := binary.ReadUvarint(buf)
-
-	log.Printf("Footer verification - FilterOffset: %d, FilterSize: %d, IndexOffset: %d, IndexSize: %d",
-		filterOffset, filterSize, indexOffset, indexSize)
-
+	//
+	//buf := bytes.NewBuffer(footerData)
+	//filterOffset, _ := binary.ReadUvarint(buf)
+	//filterSize, _ := binary.ReadUvarint(buf)
+	//indexOffset, _ := binary.ReadUvarint(buf)
+	//indexSize, _ := binary.ReadUvarint(buf)
+	//
+	//log.Printf("Footer verification - FilterOffset: %d, FilterSize: %d, IndexOffset: %d, IndexSize: %d",
+	//	filterOffset, filterSize, indexOffset, indexSize)
 	return nil
 }

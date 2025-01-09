@@ -7,7 +7,6 @@ import (
 	"github.com/peterouob/gocloud/db/config"
 	"github.com/peterouob/gocloud/db/utils"
 	"io"
-	"log"
 	"sync"
 )
 
@@ -91,11 +90,10 @@ func (n *Node) nextRecord() ([]byte, []byte) {
 
 func (n *Node) Get(key []byte) ([]byte, error) {
 	if bytes.Compare(key, n.startKey) < 0 || bytes.Compare(key, n.endKey) > 0 {
-		log.Printf("Key %v out of range: startKey %v, endKey %v", key, n.startKey, n.endKey)
+		//log.Printf("Key %v out of range: startKey %v, endKey %v", key, n.startKey, n.endKey)
 		return nil, nil
 	}
 
-	log.Println("Get from record :", string(key))
 	for _, index := range n.index[1:] {
 		f := n.filter[index.PrevOffset]
 		if !utils.Contains(f, key) {
@@ -110,7 +108,6 @@ func (n *Node) Get(key []byte) ([]byte, error) {
 				return nil, errors.New("error in readBlock EOF : " + err.Error())
 			}
 			record, restartPoint, err := DecodeBlock(data)
-			log.Println("record", string(record))
 			if err != nil {
 				return nil, fmt.Errorf("%d stage %d node, read records error %v", n.Level, n.SeqNo, err)
 			}
@@ -168,7 +165,7 @@ func (n *Node) Get(key []byte) ([]byte, error) {
 
 func (n *Node) destroy() {
 	n.wg.Wait()
-	n.sr.Destroy()
+	//n.sr.Destroy()
 	n.Level = -1
 	n.filter = nil
 	n.index = nil
